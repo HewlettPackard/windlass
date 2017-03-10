@@ -89,9 +89,12 @@ def get_image(image_def, nocache):
     try:
         im = docker.images.get(image_def['name'])
         repos, tags =zip(*(t.split(':') for t in im.tags))
+
         if 'nowindlass' in tags:
             print('Image %s will not be pulled or build as it has nowindlass tag'
                   % image_def['name'])
+            if not remote + image_def['name'] in repos:
+                docker.api.tag(im.id, remote + image_def['name'], 'latest')
             return im
     except ImageNotFound:
         pass
