@@ -15,7 +15,7 @@ def guess_repo_name(repourl):
     if repourl.endswith('.git'):
         return repourl.split('/')[-1][:-4]
     else:
-        raise NotImplemented
+        return repourl.split('/')[-1]
 
 
 def load_proxy():
