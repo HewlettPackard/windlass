@@ -27,17 +27,37 @@ def load_proxy():
     return env
 
 
+def build_verbosly(name, path, nocache=False):
+    docker = from_env()
+    bargs = load_proxy()
+    stream = docker.api.build(path=path, tag=remote+name, nocache=nocache,
+                                 buildargs=bargs,
+                                 stream=True)
+    errors = []
+    for line in stream:
+        data = load(line.decode())
+
+        if 'stream' in data:
+            for out in data['stream'].split('\n\r'):
+                print('%s : %s' % (name, out), end='')
+        elif 'error' in data:
+            #print('%s ERROR: %s' % (name, data['error']))
+            errors.append(data['error'])
+    if errors:
+        msg = 'Failed to build %s:\n%s\n\n' %(name, '\n'.join(errors))
+        raise Exception(msg)
+    return docker.images.get(remote+name)
+
+
 def build_image_from_remote_repo(repourl, imagepath, name, tags=[],
                                  branch='master', nocache=False):
-    print('Building image %s located in directory %s in repository %s'
+    print('%s : Building image located in directory %s in repository %s'
           % (name, imagepath, repourl))
     docker = from_env()
     with TemporaryDirectory() as tempdir:
         repo = Repo.clone_from(repourl, tempdir, branch=branch, depth=1,
                                single_branch=True)
-        image = docker.images.build(path=join(tempdir, imagepath),
-                                    tag=remote + name, nocache=nocache,
-                                    buildargs=load_proxy())
+        image = build_verbosly(name, join(tempdir, imagepath), nocache=nocache)
         image.tag(remote + name, 'ref_' + repo.active_branch.commit.hexsha)
         image.tag(remote + name, 'branch_' + repo.active_branch.name)
     return image
@@ -46,12 +66,10 @@ def build_image_from_remote_repo(repourl, imagepath, name, tags=[],
 def build_image_from_local_repo(repopath, imagepath, name, tags=[],
                                 nocache=False):
     docker = from_env()
-    print('Building image %s from local directory %s' %
+    print('%s : Building image from local directory %s' %
           (name, join(repopath, imagepath)))
     repo = Repo(repopath)
-    image = docker.images.build(path=join(repopath, imagepath),
-                                tag=remote + name, nocache=nocache,
-                                buildargs=load_proxy())
+    image = build_verbosly(name, join(repopath, imagepath), nocache=nocache)
     if repo.head.is_detached:
         commit = repo.head.commit.hexsha
     else:
@@ -66,13 +84,14 @@ def build_image_from_local_repo(repopath, imagepath, name, tags=[],
     return image
 
 
+
 def pull_image(repopath, name, tags=[]):
     docker = from_env()
-    print("Pulling %s from %s" % (name, repopath))
+    print("%s : Pulling image from %s" % (name, repopath))
     if ':' in repopath:
         repo, tag = repopath.split(':')
     else:
-        print('Warning %s is not pinned, latest would be pulled' % name)
+        print('%s : Warning image is not pinned, latest would be pulled' % name)
         repo, tag = repopath, 'latest'
     docker.api.pull(repo, tag=tag)
     image = docker.images.get(repopath)
@@ -91,7 +110,7 @@ def get_image(image_def, nocache):
         repos, tags =zip(*(t.split(':') for t in im.tags))
 
         if 'nowindlass' in tags:
-            print('Image %s will not be pulled or build as it has nowindlass tag'
+            print('%s : Image will not be pulled or build as it has nowindlass tag'
                   % image_def['name'])
             if not remote + image_def['name'] in repos:
                 docker.api.tag(im.id, remote + image_def['name'], 'latest')
@@ -115,22 +134,48 @@ def get_image(image_def, nocache):
                                               branch=image_def.get('branch',
                                                                    'master'),
                                               nocache=nocache)
+        print('%s : Building of image completed' % image_def['name'])
     else:
         im = pull_image(image_def['remote'], image_def['name'])
     return im
 
 
 def process_image(image_def, ns):
+    import sys
+    sys.tracebacklimit = 0
+
+    name = image_def['name']
     if not ns.push_only:
         get_image(image_def, ns.no_docker_cache)
     if not ns.build_only:
         docker = from_env()
-        print('Pushing', remote + image_def['name'])
-        docker.images.push(remote + image_def['name'])
+        print('%s : Pushing as %s' % (name, remote+name))
+        r=docker.images.push(remote + name)
+        lastmsgs = []
+        for line in r.split('\n'):
+            if line == '':
+                continue
+
+            data = load(line)
+            if 'status' in data:
+                if 'id' in data:
+                    msg = '%s layer %s: %s' % (name,
+                                               data['id'],
+                                               data['status'])
+                else:
+                    msg = '%s: %s' % (name, data['status'])
+                if msg not in lastmsgs:
+                    print(msg)
+                    lastmsgs.append(msg)
+            elif 'error' in data:
+                raise Exception('%s ERROR when pushing: %s' %
+                                (name, data['error']))
+        print('%s : succssfully pushed' % name)
+
+
 
 
 if __name__ == '__main__':
-
 
     parser = ArgumentParser(description='Windlass products from other repos')
     parser.add_argument('products', default=[], type=str, nargs='*',
@@ -163,7 +208,16 @@ if __name__ == '__main__':
                             args=(image_def, ns),
                             name=image_def['name'])
                 p.start()
+                #p.join()
                 procs.append(p)
+    failed = []
     for p in procs:
         p.join()
-    print('Windlassed', ','.join(products_to_build))
+        if p.exitcode != 0:
+            failed.append(p.name)
+    if failed:
+        print('Tried to windlass', ','.join(products_to_build))
+        print('Failed with images', ','.join(failed))
+        exit(1)
+    else:
+        print('Windlassed', ','.join(products_to_build))
