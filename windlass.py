@@ -1,14 +1,20 @@
 #!/bin/env python3
-from git import Repo
+
+from argparse import ArgumentParser
+from glob import glob
+from multiprocessing import Process, Queue
+from os import environ
+from os.path import join, basename, splitext, exists
 from tempfile import TemporaryDirectory
+import hashlib
+import os
+import shutil
+import subprocess
+
+from git import Repo
 from docker import from_env
 from docker.errors import ImageNotFound
-from os.path import join, basename, splitext, exists
-from os import environ
-from glob import glob
-from argparse import ArgumentParser
-from yaml import load
-from multiprocessing import Process, Queue
+import yaml
 
 
 def guess_repo_name(repourl):
@@ -35,7 +41,7 @@ def build_verbosly(name, path, nocache=False):
                                  stream=True)
     errors = []
     for line in stream:
-        data = load(line.decode())
+        data = yaml.load(line.decode())
 
         if 'stream' in data:
             for out in data['stream'].split('\n\r'):
@@ -156,7 +162,7 @@ def process_image(image_def, ns):
             if line == '':
                 continue
 
-            data = load(line)
+            data = yaml.load(line)
             if 'status' in data:
                 if 'id' in data:
                     msg = '%s layer %s: %s' % (name,
@@ -173,10 +179,71 @@ def process_image(image_def, ns):
         print('%s : succssfully pushed' % name)
 
 
+def fetch_remote_chart(repo, chart, version):
+    repo_name = hashlib.sha1(repo.encode('utf-8')).hexdigest()[:20]
+    subprocess.call(['helm', 'repo', 'add', repo_name, repo])
+
+    if version:
+        version_args = ['--version', version]
+    else:
+        version_args = []
+
+    subprocess.call(['helm', 'fetch', repo_name+'/'+chart, '-d', '/charts'] +
+                    version_args)
+
+
+def package_local_chart(directory, chart):
+    subprocess.call(['helm', 'package', join('/sources/<dev-env>', directory, chart)])
+    subprocess.call(['ls'])
+
+    for tgz in glob(chart + '*.tgz'):
+        shutil.copy(tgz, '/charts')
+
+
+def make_landscape_file(chart_def, landscape_dir):
+    name = chart_def.get("name")
+    version = chart_def.get("version")
+    chart = chart_def.get("chart")
+    configuration = chart_def.get("configuration")
+
+    content = {
+        "name": name,
+        "release": {
+            "chart": "ncs/{name}:{version}".format(
+                name=chart,
+                version=version),
+            "version": version,
+        },
+        "configuration": configuration,
+    }
+
+    if not os.path.exists(landscape_dir):
+        os.makedirs(landscape_dir)
+
+    landscape = yaml.dump(content, default_flow_style=False)
+
+    print('generated landscape definition for {}:'.format(name))
+    print(landscape)
+
+    with open(join(landscape_dir, chart_def.get("name")) + '.yaml', 'w') as f:
+        f.write(landscape)
+
+
+def process_chart(chart_def, ns):
+    version = chart_def['version']
+    chart = chart_def['chart']
+    repository = chart_def['repository']
+    conf = chart_def['configuration']
+
+    if repository.startswith('./'):
+        package_local_chart(repository, chart)
+    else:
+        fetch_remote_chart(repository, chart, version)
+
+    make_landscape_file(chart_def, '/charts/landscape')
 
 
 if __name__ == '__main__':
-
     parser = ArgumentParser(description='Windlass products from other repos')
     parser.add_argument('products', default=[], type=str, nargs='*',
                         help='List of products, devenv included by default.')
@@ -201,7 +268,9 @@ if __name__ == '__main__':
             continue
         print("Windlassing images for %s" % product_name)
         with open(product_file, 'r') as f:
-            product_def = load(f.read())
+            product_def = yaml.load(f.read())
+            print(product_def)
+
         if 'images' in product_def:
             for image_def in product_def['images']:
                 p = Process(target=process_image,
@@ -210,6 +279,10 @@ if __name__ == '__main__':
                 p.start()
                 #p.join()
                 procs.append(p)
+        if 'charts' in product_def:
+            for chart_def in product_def['charts']:
+                print(chart_def)
+                process_chart(chart_def, ns)
     failed = []
     for p in procs:
         p.join()
