@@ -233,7 +233,6 @@ def process_chart(chart_def, ns):
     version = chart_def['version']
     chart = chart_def['chart']
     repository = chart_def['repository']
-    conf = chart_def['configuration']
 
     if repository.startswith('./'):
         package_local_chart(repository, chart)
