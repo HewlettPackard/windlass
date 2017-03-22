@@ -250,8 +250,7 @@ if __name__ == '__main__':
                         help='Build images but does not publish them')
     parser.add_argument('--push-only', action='store_true',
                         help='Publish images only')
-    parser.add_argument('--repository', nargs=1, type=str,
-                        default='<remote>',
+    parser.add_argument('--repository', type=str, default='<remote>',
                         help='Docker registry where images can be published')
     parser.add_argument('--no-docker-cache', action='store_true',
                         help='Use no-cache option in docker build')
