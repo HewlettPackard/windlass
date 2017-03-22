@@ -200,7 +200,7 @@ def package_local_chart(directory, chart):
         shutil.copy(tgz, '/charts')
 
 
-def make_landscape_file(chart_def, landscape_dir):
+def make_landscaper_file(chart_def, landscaper_dir):
     name = chart_def.get("name")
     version = chart_def.get("version")
     chart = chart_def.get("chart")
@@ -217,16 +217,16 @@ def make_landscape_file(chart_def, landscape_dir):
         "configuration": configuration,
     }
 
-    if not os.path.exists(landscape_dir):
-        os.makedirs(landscape_dir)
+    if not os.path.exists(landscaper_dir):
+        os.makedirs(landscaper_dir)
 
-    landscape = yaml.dump(content, default_flow_style=False)
+    landscaper = yaml.dump(content, default_flow_style=False)
 
-    print('generated landscape definition for {}:'.format(name))
-    print(landscape)
+    print('generated landscaper definition for {}:'.format(name))
+    print(landscaper)
 
-    with open(join(landscape_dir, chart_def.get("name")) + '.yaml', 'w') as f:
-        f.write(landscape)
+    with open(join(landscaper_dir, chart_def.get("name")) + '.yaml', 'w') as f:
+        f.write(landscaper)
 
 
 def process_chart(chart_def, ns):
@@ -239,7 +239,7 @@ def process_chart(chart_def, ns):
     else:
         fetch_remote_chart(repository, chart, version)
 
-    make_landscape_file(chart_def, '/charts/landscape')
+    make_landscaper_file(chart_def, '/charts/landscaper')
 
 
 if __name__ == '__main__':
