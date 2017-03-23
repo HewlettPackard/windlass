@@ -34,7 +34,7 @@ def load_proxy():
 
 
 def build_verbosly(name, path, nocache=False):
-    docker = from_env()
+    docker = from_env(version='auto')
     bargs = load_proxy()
     stream = docker.api.build(path=path, tag=remote+name, nocache=nocache,
                                  buildargs=bargs,
@@ -59,7 +59,7 @@ def build_image_from_remote_repo(repourl, imagepath, name, tags=[],
                                  branch='master', nocache=False):
     print('%s : Building image located in directory %s in repository %s'
           % (name, imagepath, repourl))
-    docker = from_env()
+    docker = from_env(version='auto')
     with TemporaryDirectory() as tempdir:
         repo = Repo.clone_from(repourl, tempdir, branch=branch, depth=1,
                                single_branch=True)
@@ -71,7 +71,7 @@ def build_image_from_remote_repo(repourl, imagepath, name, tags=[],
 
 def build_image_from_local_repo(repopath, imagepath, name, tags=[],
                                 nocache=False):
-    docker = from_env()
+    docker = from_env(version='auto')
     print('%s : Building image from local directory %s' %
           (name, join(repopath, imagepath)))
     repo = Repo(repopath)
@@ -92,7 +92,7 @@ def build_image_from_local_repo(repopath, imagepath, name, tags=[],
 
 
 def pull_image(repopath, name, tags=[]):
-    docker = from_env()
+    docker = from_env(version='auto')
     print("%s : Pulling image from %s" % (name, repopath))
     if ':' in repopath:
         repo, tag = repopath.split(':')
@@ -110,7 +110,7 @@ def pull_image(repopath, name, tags=[]):
 
 
 def get_image(image_def, nocache):
-    docker = from_env()
+    docker = from_env(version='auto')
     try:
         im = docker.images.get(image_def['name'])
         repos, tags =zip(*(t.split(':') for t in im.tags))
@@ -154,7 +154,7 @@ def process_image(image_def, ns):
     if not ns.push_only:
         get_image(image_def, ns.no_docker_cache)
     if not ns.build_only:
-        docker = from_env()
+        docker = from_env(version='auto')
         print('%s : Pushing as %s' % (name, remote+name))
         r=docker.images.push(remote + name)
         lastmsgs = []
