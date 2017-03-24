@@ -156,7 +156,7 @@ def process_image(image_def, ns):
     if not ns.build_only:
         docker = from_env(version='auto')
         print('%s : Pushing as %s' % (name, remote+name))
-        r=docker.images.push(remote + name)
+        r=docker.images.push(remote + name, "latest")
         lastmsgs = []
         for line in r.split('\n'):
             if line == '':
