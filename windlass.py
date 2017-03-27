@@ -32,13 +32,24 @@ def load_proxy():
         env['https_proxy'] = environ['https_proxy']
     return env
 
+def clean_tag(tag):
+    clean = ''
+    valid = ['_', '-', '.']
+    for c in tag:
+        if c.isalnum() or c in valid:
+            clean += c
+        else:
+            clean += '_'
+    return clean[:128]
 
 def build_verbosly(name, path, nocache=False):
     docker = from_env(version='auto')
     bargs = load_proxy()
-    stream = docker.api.build(path=path, tag=remote+name, nocache=nocache,
-                                 buildargs=bargs,
-                                 stream=True)
+    stream = docker.api.build(path=path,
+                              tag=clean_tag(remote+name),
+                              nocache=nocache,
+                              buildargs=bargs,
+                              stream=True)
     errors = []
     for line in stream:
         data = yaml.load(line.decode())
@@ -64,8 +75,8 @@ def build_image_from_remote_repo(repourl, imagepath, name, tags=[],
         repo = Repo.clone_from(repourl, tempdir, branch=branch, depth=1,
                                single_branch=True)
         image = build_verbosly(name, join(tempdir, imagepath), nocache=nocache)
-        image.tag(remote + name, 'ref_' + repo.active_branch.commit.hexsha)
-        image.tag(remote + name, 'branch_' + repo.active_branch.name)
+        image.tag(remote + name, clean_tag('ref_' + repo.active_branch.commit.hexsha))
+        image.tag(remote + name, clean_tag('branch_' + repo.active_branch.name))
     return image
 
 
@@ -80,12 +91,13 @@ def build_image_from_local_repo(repopath, imagepath, name, tags=[],
         commit = repo.head.commit.hexsha
     else:
         commit = repo.active_branch.commit.hexsha
-        image.tag(remote + name, 'branch_' + repo.active_branch.name)
+        image.tag(remote + name,
+                  clean_tag('branch_' + repo.active_branch.name.replace('/', '_')))
     if repo.is_dirty():
         image.tag(remote + name,
-                  'last_ref_' + commit)
+                  clean_tag('last_ref_' + commit))
     else:
-        image.tag(remote + name, 'ref_' + commit)
+        image.tag(remote + name, clean_tag('ref_' + commit))
 
     return image
 
