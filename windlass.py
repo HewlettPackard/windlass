@@ -46,7 +46,7 @@ def build_verbosly(name, path, nocache=False):
     docker = from_env(version='auto')
     bargs = load_proxy()
     stream = docker.api.build(path=path,
-                              tag=clean_tag(remote+name),
+                              tag=remote+name,
                               nocache=nocache,
                               buildargs=bargs,
                               stream=True)
