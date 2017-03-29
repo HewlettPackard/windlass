@@ -1,5 +1,6 @@
 #!/bin/env python3
 
+from collections import defaultdict
 from argparse import ArgumentParser
 from glob import glob
 from multiprocessing import Process, Queue
@@ -283,21 +284,29 @@ if __name__ == '__main__':
 
         if 'images' in product_def:
             for image_def in product_def['images']:
-                p = Process(target=process_image,
-                            args=(image_def, ns),
-                            name=image_def['name'])
-                p.start()
-                #p.join()
-                procs.append(p)
+                images.append(image_def)
         if 'charts' in product_def:
             for chart_def in product_def['charts']:
                 print(chart_def)
                 process_chart(chart_def, ns)
     failed = []
-    for p in procs:
-        p.join()
-        if p.exitcode != 0:
-            failed.append(p.name)
+    d = defaultdict(list)
+    for image_def in images:
+        k = image_def.get('priority', 0)
+        d[k].append(image_def)
+
+    for i in reversed(sorted(d.keys())):
+        for image_def in d[i]:
+            p = Process(target=process_image,
+                        args=(image_def, ns),
+                        name=image_def['name'])
+            p.start()
+            procs.append(p)
+        for p in procs:
+            p.join()
+            if p.exitcode != 0:
+                failed.append(p.name)
+
     if failed:
         print('Tried to windlass', ','.join(products_to_build))
         print('Failed with images', ','.join(failed))
