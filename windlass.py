@@ -33,6 +33,7 @@ def load_proxy():
         env['https_proxy'] = environ['https_proxy']
     return env
 
+
 def clean_tag(tag):
     clean = ''
     valid = ['_', '-', '.']
@@ -42,6 +43,7 @@ def clean_tag(tag):
         else:
             clean += '_'
     return clean[:128]
+
 
 def build_verbosly(name, path, nocache=False):
     docker = from_env(version='auto')
@@ -59,10 +61,10 @@ def build_verbosly(name, path, nocache=False):
             for out in data['stream'].split('\n\r'):
                 print('%s : %s' % (name, out), end='')
         elif 'error' in data:
-            #print('%s ERROR: %s' % (name, data['error']))
+            # print('%s ERROR: %s' % (name, data['error']))
             errors.append(data['error'])
     if errors:
-        msg = 'Failed to build %s:\n%s\n\n' %(name, '\n'.join(errors))
+        msg = 'Failed to build %s:\n%s\n\n' % (name, '\n'.join(errors))
         raise Exception(msg)
     return docker.images.get(remote+name)
 
@@ -75,9 +77,12 @@ def build_image_from_remote_repo(repourl, imagepath, name, tags=[],
     with TemporaryDirectory() as tempdir:
         repo = Repo.clone_from(repourl, tempdir, branch=branch, depth=1,
                                single_branch=True)
-        image = build_verbosly(name, join(tempdir, imagepath), nocache=nocache)
-        image.tag(remote + name, clean_tag('ref_' + repo.active_branch.commit.hexsha))
-        image.tag(remote + name, clean_tag('branch_' + repo.active_branch.name))
+        image = build_verbosly(name, join(tempdir, imagepath),
+                               nocache=nocache)
+        image.tag(remote + name,
+                  clean_tag('ref_' + repo.active_branch.commit.hexsha))
+        image.tag(remote + name,
+                  clean_tag('branch_' + repo.active_branch.name))
     return image
 
 
@@ -93,7 +98,8 @@ def build_image_from_local_repo(repopath, imagepath, name, tags=[],
     else:
         commit = repo.active_branch.commit.hexsha
         image.tag(remote + name,
-                  clean_tag('branch_' + repo.active_branch.name.replace('/', '_')))
+                  clean_tag('branch_' +
+                            repo.active_branch.name.replace('/', '_')))
     if repo.is_dirty():
         image.tag(remote + name,
                   clean_tag('last_ref_' + commit))
@@ -103,14 +109,14 @@ def build_image_from_local_repo(repopath, imagepath, name, tags=[],
     return image
 
 
-
 def pull_image(repopath, name, tags=[]):
     docker = from_env(version='auto')
     print("%s : Pulling image from %s" % (name, repopath))
     if ':' in repopath:
         repo, tag = repopath.split(':')
     else:
-        print('%s : Warning image is not pinned, latest would be pulled' % name)
+        print('%s : Warning image is not pinned, latest would be pulled'
+              % name)
         repo, tag = repopath, 'latest'
     docker.api.pull(repo, tag=tag)
     image = docker.images.get(repopath)
@@ -126,11 +132,11 @@ def get_image(image_def, nocache):
     docker = from_env(version='auto')
     try:
         im = docker.images.get(image_def['name'])
-        repos, tags =zip(*(t.split(':') for t in im.tags))
+        repos, tags = zip(*(t.split(':') for t in im.tags))
 
         if 'nowindlass' in tags:
-            print('%s : Image will not be pulled or build as it has nowindlass tag'
-                  % image_def['name'])
+            print('%s : Image will not be pulled or build as it has nowindlass '
+                  'tag' % image_def['name'])
             if not remote + image_def['name'] in repos:
                 docker.api.tag(im.id, remote + image_def['name'], 'latest')
             return im
@@ -169,7 +175,7 @@ def process_image(image_def, ns):
     if not ns.build_only:
         docker = from_env(version='auto')
         print('%s : Pushing as %s' % (name, remote+name))
-        r=docker.images.push(remote + name, "latest")
+        r = docker.images.push(remote + name, "latest")
         lastmsgs = []
         for line in r.split('\n'):
             if line == '':
@@ -206,7 +212,8 @@ def fetch_remote_chart(repo, chart, version):
 
 
 def package_local_chart(directory, chart):
-    subprocess.call(['helm', 'package', join('/sources/<dev-env>', directory, chart)])
+    subprocess.call(
+        ['helm', 'package', join('/sources/<dev-env>', directory, chart)])
     subprocess.call(['ls'])
 
     for tgz in glob(chart + '*.tgz'):
