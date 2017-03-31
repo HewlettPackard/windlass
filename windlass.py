@@ -3,7 +3,7 @@
 from collections import defaultdict
 from argparse import ArgumentParser
 from glob import glob
-from multiprocessing import Process, Queue
+from multiprocessing import Process, Event
 from os import environ
 from os.path import join, basename, splitext, exists
 from tempfile import TemporaryDirectory
@@ -14,8 +14,9 @@ import subprocess
 
 from git import Repo
 from docker import from_env
-from docker.errors import ImageNotFound
+from docker.errors import ImageNotFound, NotFound, APIError
 import yaml
+from time import sleep
 
 
 def guess_repo_name(repourl):
@@ -165,22 +166,13 @@ def get_image(image_def, nocache):
     return im
 
 
-def process_image(image_def, ns):
-    import sys
-    sys.tracebacklimit = 0
-
-    name = image_def['name']
-    if not ns.push_only:
-        get_image(image_def, ns.no_docker_cache)
-    if not ns.build_only:
-        docker = from_env(version='auto')
-        print('%s : Pushing as %s' % (name, remote+name))
-        r = docker.images.push(remote + name, "latest")
-        lastmsgs = []
-        for line in r.split('\n'):
-            if line == '':
-                continue
-
+def push_image(name, imagename):
+    docker = from_env(version='auto')
+    print('%s : Pushing as %s' % (name, remote+name))
+    r = docker.images.push(imagename, "latest")
+    lastmsgs = []
+    for line in r.split('\n'):
+        if line != '':
             data = yaml.load(line)
             if 'status' in data:
                 if 'id' in data:
@@ -189,13 +181,32 @@ def process_image(image_def, ns):
                                                data['status'])
                 else:
                     msg = '%s: %s' % (name, data['status'])
-                if msg not in lastmsgs:
-                    print(msg)
-                    lastmsgs.append(msg)
-            elif 'error' in data:
-                raise Exception('%s ERROR when pushing: %s' %
-                                (name, data['error']))
-        print('%s : succssfully pushed' % name)
+                    if msg not in lastmsgs:
+                        print(msg)
+                        lastmsgs.append(msg)
+                    elif 'error' in data:
+                        raise Exception('%s ERROR when pushing: %s' %
+                                        (name, data['error']))
+    return True
+
+
+def process_image(image_def, ns):
+
+    name = image_def['name']
+    try:
+        if not ns.push_only:
+            get_image(image_def, ns.no_docker_cache)
+        if not ns.build_only:
+            if not ns.registry_ready.is_set():
+                print('%s : waiting for registry' % name)
+                ns.registry_ready.wait()
+            push_image(name, remote+name)
+            print('%s : succssfully pushed' % name)
+    except Exception as e:
+        print('%s : failed with exception' % name, e)
+        from traceback import print_exc
+        print_exc()
+        ns.failure_occured.set()
 
 
 def fetch_remote_chart(repo, chart, version):
@@ -262,6 +273,35 @@ def process_chart(chart_def, ns):
     make_landscaper_file(chart_def, '/charts/landscaper')
 
 
+def wait_for_registry(ns):
+    docker = from_env(version='auto')
+    while True:
+        try:
+            docker.api.pull(remote + 'noimage')
+            ns.registry_ready.set()
+            print('wait_for_registry: registry detected')
+            return
+        except (APIError, NotFound):
+            pass
+        except Exception as e:
+            print('wait_for_registry : Failed with ', e)
+            ns.failure_occured.set()
+            return
+        finally:
+            if ns.failure_occured.wait(0.1):
+                return
+
+
+def wait_for_procs(procs, ns):
+    while True:
+        if len([p for p in procs if p.is_alive()]) == 0:
+            return True
+        if ns.failure_occured.wait(0.1):
+            for p in procs:
+                p.terminate()
+            print('Killed all processes')
+            return False
+
 if __name__ == '__main__':
     parser = ArgumentParser(description='Windlass products from other repos')
     parser.add_argument('products', default=[], type=str, nargs='*',
@@ -275,10 +315,17 @@ if __name__ == '__main__':
     parser.add_argument('--no-docker-cache', action='store_true',
                         help='Use no-cache option in docker build')
     ns = parser.parse_args()
+    ns.registry_ready = Event()
+    ns.failure_occured = Event()
     products_to_build = ns.products + ['devenv']
     remote = ns.repository + '/'
     images = []
+    if not ns.build_only:
+        waitproc = Process(target=wait_for_registry,
+                           args=(ns,), name='wait_for_registry')
+        waitproc.start()
     procs = []
+
     for product_file in glob('/sources/<dev-env>/products/*.yml'):
         product_name = splitext((basename(product_file)))[0]
         if product_name not in products_to_build:
@@ -287,7 +334,7 @@ if __name__ == '__main__':
         print("Windlassing images for %s" % product_name)
         with open(product_file, 'r') as f:
             product_def = yaml.load(f.read())
-            print(product_def)
+    #        print(product_def)
 
         if 'images' in product_def:
             for image_def in product_def['images']:
@@ -296,12 +343,11 @@ if __name__ == '__main__':
             for chart_def in product_def['charts']:
                 print(chart_def)
                 process_chart(chart_def, ns)
-    failed = []
     d = defaultdict(list)
     for image_def in images:
         k = image_def.get('priority', 0)
         d[k].append(image_def)
-
+    failed = False
     for i in reversed(sorted(d.keys())):
         for image_def in d[i]:
             p = Process(target=process_image,
@@ -309,14 +355,11 @@ if __name__ == '__main__':
                         name=image_def['name'])
             p.start()
             procs.append(p)
-        for p in procs:
-            p.join()
-            if p.exitcode != 0:
-                failed.append(p.name)
+        if not wait_for_procs(procs, ns):
+            failed = True
 
     if failed:
         print('Tried to windlass', ','.join(products_to_build))
-        print('Failed with images', ','.join(failed))
         exit(1)
     else:
         print('Windlassed', ','.join(products_to_build))
