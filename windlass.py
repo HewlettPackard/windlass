@@ -46,11 +46,11 @@ def clean_tag(tag):
     return clean[:128]
 
 
-def build_verbosly(name, path, nocache=False):
+def build_verbosly(name, path, repository, nocache=False):
     docker = from_env(version='auto')
     bargs = load_proxy()
     stream = docker.api.build(path=path,
-                              tag=remote+name,
+                              tag=repository+name,
                               nocache=nocache,
                               buildargs=bargs,
                               stream=True)
@@ -67,10 +67,10 @@ def build_verbosly(name, path, nocache=False):
     if errors:
         msg = 'Failed to build %s:\n%s\n\n' % (name, '\n'.join(errors))
         raise Exception(msg)
-    return docker.images.get(remote+name)
+    return docker.images.get(repository+name)
 
 
-def build_image_from_remote_repo(repourl, imagepath, name, tags=[],
+def build_image_from_remote_repo(repourl, imagepath, name, repository, tags=[],
                                  branch='master', nocache=False):
     print('%s : Building image located in directory %s in repository %s'
           % (name, imagepath, repourl))
@@ -78,39 +78,40 @@ def build_image_from_remote_repo(repourl, imagepath, name, tags=[],
     with TemporaryDirectory() as tempdir:
         repo = Repo.clone_from(repourl, tempdir, branch=branch, depth=1,
                                single_branch=True)
-        image = build_verbosly(name, join(tempdir, imagepath),
+        image = build_verbosly(name, join(tempdir, imagepath), repository,
                                nocache=nocache)
-        image.tag(remote + name,
+        image.tag(repository + name,
                   clean_tag('ref_' + repo.active_branch.commit.hexsha))
-        image.tag(remote + name,
+        image.tag(repository + name,
                   clean_tag('branch_' + repo.active_branch.name))
     return image
 
 
-def build_image_from_local_repo(repopath, imagepath, name, tags=[],
+def build_image_from_local_repo(repopath, imagepath, name, repository, tags=[],
                                 nocache=False):
     docker = from_env(version='auto')
     print('%s : Building image from local directory %s' %
           (name, join(repopath, imagepath)))
     repo = Repo(repopath)
-    image = build_verbosly(name, join(repopath, imagepath), nocache=nocache)
+    image = build_verbosly(name, join(repopath, imagepath), repository,
+                           nocache=nocache)
     if repo.head.is_detached:
         commit = repo.head.commit.hexsha
     else:
         commit = repo.active_branch.commit.hexsha
-        image.tag(remote + name,
+        image.tag(repository + name,
                   clean_tag('branch_' +
                             repo.active_branch.name.replace('/', '_')))
     if repo.is_dirty():
-        image.tag(remote + name,
+        image.tag(repository + name,
                   clean_tag('last_ref_' + commit))
     else:
-        image.tag(remote + name, clean_tag('ref_' + commit))
+        image.tag(repository + name, clean_tag('ref_' + commit))
 
     return image
 
 
-def pull_image(repopath, name, tags=[]):
+def pull_image(repopath, name, repository, tags=[]):
     docker = from_env(version='auto')
     print("%s : Pulling image from %s" % (name, repopath))
     if ':' in repopath:
@@ -121,15 +122,15 @@ def pull_image(repopath, name, tags=[]):
         repo, tag = repopath, 'latest'
     docker.api.pull(repo, tag=tag)
     image = docker.images.get(repopath)
-    docker.api.tag(image.id, remote + name, tag)
+    docker.api.tag(image.id, repository + name, tag)
     # it seems some code depends on latest tag existing
     if not tag == 'latest':
-        docker.api.tag(image.id, remote + name, 'latest')
-    image = docker.images.get(':'.join([remote + name, tag]))
+        docker.api.tag(image.id, repository + name, 'latest')
+    image = docker.images.get(':'.join([repository + name, tag]))
     return image
 
 
-def get_image(image_def, nocache):
+def get_image(image_def, nocache, repository):
     docker = from_env(version='auto')
     try:
         im = docker.images.get(image_def['name'])
@@ -138,8 +139,8 @@ def get_image(image_def, nocache):
         if 'nowindlass' in tags:
             print('%s : Image will not be pulled or build as it has nowindlass '
                   'tag' % image_def['name'])
-            if not remote + image_def['name'] in repos:
-                docker.api.tag(im.id, remote + image_def['name'], 'latest')
+            if not repository + image_def['name'] in repos:
+                docker.api.tag(im.id, repository + image_def['name'], 'latest')
             return im
     except ImageNotFound:
         pass
@@ -152,23 +153,25 @@ def get_image(image_def, nocache):
         if exists(join(repopath, '.git')):
             im = build_image_from_local_repo(repopath, image_def['context'],
                                              image_def['name'],
+                                             repository=repository,
                                              nocache=nocache)
         else:
             im = build_image_from_remote_repo(image_def['repo'],
                                               image_def['context'],
                                               image_def['name'],
+                                              repository=repository,
                                               branch=image_def.get('branch',
                                                                    'master'),
                                               nocache=nocache)
         print('%s : Building of image completed' % image_def['name'])
     else:
-        im = pull_image(image_def['remote'], image_def['name'])
+        im = pull_image(image_def['remote'], image_def['name'], repository)
     return im
 
 
 def push_image(name, imagename):
     docker = from_env(version='auto')
-    print('%s : Pushing as %s' % (name, remote+name))
+    print('%s : Pushing as %s' % (name, imagename))
     r = docker.images.push(imagename, "latest")
     lastmsgs = []
     for line in r.split('\n'):
@@ -195,12 +198,12 @@ def process_image(image_def, ns):
     name = image_def['name']
     try:
         if not ns.push_only:
-            get_image(image_def, ns.no_docker_cache)
+            get_image(image_def, ns.no_docker_cache, ns.repository)
         if not ns.build_only:
             if not ns.registry_ready.is_set():
                 print('%s : waiting for registry' % name)
                 ns.registry_ready.wait()
-            push_image(name, remote+name)
+            push_image(name, ns.repository+name)
             print('%s : succssfully pushed' % name)
     except Exception as e:
         print('%s : failed with exception' % name, e)
@@ -277,7 +280,7 @@ def wait_for_registry(ns):
     docker = from_env(version='auto')
     while True:
         try:
-            docker.api.pull(remote + 'noimage')
+            docker.api.pull(ns.repository + 'noimage')
             ns.registry_ready.set()
             print('wait_for_registry: registry detected')
             return
@@ -302,7 +305,8 @@ def wait_for_procs(procs, ns):
             print('Killed all processes')
             return False
 
-if __name__ == '__main__':
+
+def main():
     parser = ArgumentParser(description='Windlass products from other repos')
     parser.add_argument('products', default=[], type=str, nargs='*',
                         help='List of products, devenv included by default.')
@@ -318,7 +322,8 @@ if __name__ == '__main__':
     ns.registry_ready = Event()
     ns.failure_occured = Event()
     products_to_build = ns.products + ['devenv']
-    remote = ns.repository + '/'
+    if not ns.repository.endswith('/'):
+        ns.repository = ns.repository + '/'
     images = []
     if not ns.build_only:
         waitproc = Process(target=wait_for_registry,
@@ -363,3 +368,7 @@ if __name__ == '__main__':
         exit(1)
     else:
         print('Windlassed', ','.join(products_to_build))
+
+
+if __name__ == '__main__':
+    main()
