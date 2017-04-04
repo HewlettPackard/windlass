@@ -195,6 +195,7 @@ def push_image(name, imagename):
 
 def process_image(image_def, ns):
 
+    docker = from_env(version='auto')
     name = image_def['name']
     try:
         if not ns.push_only:
@@ -203,7 +204,16 @@ def process_image(image_def, ns):
             if not ns.registry_ready.is_set():
                 print('%s : waiting for registry' % name)
                 ns.registry_ready.wait()
-            push_image(name, ns.repository+name)
+            try:
+                if ns.proxy_repository is not '':
+                    image_name = ns.proxy_repository + name
+                    docker.api.tag(ns.repository + name, image_name, "latest")
+                else:
+                    image_name = ns.repository + name
+                push_image(name, image_name)
+            finally:
+                if ns.proxy_repository is not '':
+                    docker.api.remove_image(ns.proxy_repository + name)
             print('%s : succssfully pushed' % name)
     except Exception as e:
         print('%s : failed with exception' % name, e)
@@ -280,7 +290,7 @@ def wait_for_registry(ns):
     docker = from_env(version='auto')
     while True:
         try:
-            docker.api.pull(ns.repository + 'noimage')
+            docker.api.pull((ns.proxy_repository or ns.repository) + 'noimage')
             ns.registry_ready.set()
             print('wait_for_registry: registry detected')
             return
@@ -316,6 +326,11 @@ def main():
                         help='Publish images only')
     parser.add_argument('--repository', type=str, default='<remote>',
                         help='Docker registry where images can be published')
+    parser.add_argument('--proxy-repository', type=str, default='',
+                        help='Alternative address to use temporarily when it '
+                             'is not possible to push directly to the '
+                             'repository but still useful to use the name '
+                             'for images.')
     parser.add_argument('--no-docker-cache', action='store_true',
                         help='Use no-cache option in docker build')
     ns = parser.parse_args()
@@ -324,6 +339,8 @@ def main():
     products_to_build = ns.products + ['devenv']
     if not ns.repository.endswith('/'):
         ns.repository = ns.repository + '/'
+    if ns.proxy_repository and not ns.proxy_repository.endswith('/'):
+        ns.proxy_repository = ns.proxy_repository + '/'
     images = []
     if not ns.build_only:
         waitproc = Process(target=wait_for_registry,
