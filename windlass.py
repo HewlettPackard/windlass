@@ -8,6 +8,7 @@ from os import environ
 from os.path import join, basename, splitext, exists
 from tempfile import TemporaryDirectory
 import hashlib
+import logging
 import os
 import shutil
 import subprocess
@@ -49,6 +50,7 @@ def clean_tag(tag):
 def build_verbosly(name, path, repository, nocache=False):
     docker = from_env(version='auto')
     bargs = load_proxy()
+    logging.info("Building {} from path {}".format(name, path))
     stream = docker.api.build(path=path,
                               tag=repository+name,
                               nocache=nocache,
@@ -57,22 +59,21 @@ def build_verbosly(name, path, repository, nocache=False):
     errors = []
     for line in stream:
         data = yaml.load(line.decode())
-
         if 'stream' in data:
             for out in data['stream'].split('\n\r'):
-                print('%s : %s' % (name, out), end='')
+                logging.debug('%s: %s' % (name, out.strip()))
         elif 'error' in data:
-            # print('%s ERROR: %s' % (name, data['error']))
             errors.append(data['error'])
     if errors:
-        msg = 'Failed to build %s:\n%s\n\n' % (name, '\n'.join(errors))
-        raise Exception(msg)
+        logging.error('Failed to build {}:\n{}'.format(name, '\n'.join(errors)))
+        raise Exception("Failed to build {}".format(name))
+    logging.info("Successfully built {} from path {}".format(name, path))
     return docker.images.get(repository+name)
 
 
 def build_image_from_remote_repo(repourl, imagepath, name, repository, tags=[],
                                  branch='master', nocache=False):
-    print('%s : Building image located in directory %s in repository %s'
+    logging.info('%s : Building image located in directory %s in repository %s'
           % (name, imagepath, repourl))
     docker = from_env(version='auto')
     with TemporaryDirectory() as tempdir:
@@ -90,7 +91,7 @@ def build_image_from_remote_repo(repourl, imagepath, name, repository, tags=[],
 def build_image_from_local_repo(repopath, imagepath, name, repository, tags=[],
                                 nocache=False):
     docker = from_env(version='auto')
-    print('%s : Building image from local directory %s' %
+    logging.info('%s: Building image from local directory %s' %
           (name, join(repopath, imagepath)))
     repo = Repo(repopath)
     image = build_verbosly(name, join(repopath, imagepath), repository,
@@ -113,12 +114,12 @@ def build_image_from_local_repo(repopath, imagepath, name, repository, tags=[],
 
 def pull_image(repopath, name, repository, tags=[]):
     docker = from_env(version='auto')
-    print("%s : Pulling image from %s" % (name, repopath))
+    logging.info("%s : Pulling image from %s" % (name, repopath))
     if ':' in repopath:
         repo, tag = repopath.split(':')
     else:
-        print('%s : Warning image is not pinned, latest would be pulled'
-              % name)
+        logging.info('%s : Warning image is not pinned, latest would be pulled'
+                     % name)
         repo, tag = repopath, 'latest'
     docker.api.pull(repo, tag=tag)
     image = docker.images.get(repopath)
@@ -137,8 +138,8 @@ def get_image(image_def, nocache, repository):
         repos, tags = zip(*(t.split(':') for t in im.tags))
 
         if 'nowindlass' in tags:
-            print('%s : Image will not be pulled or build as it has nowindlass '
-                  'tag' % image_def['name'])
+            logging.info('%s: Image will not be pulled or build as it has nowindlass '
+                         'tag' % image_def['name'])
             if not repository + image_def['name'] in repos:
                 docker.api.tag(im.id, repository + image_def['name'], 'latest')
             return im
@@ -163,7 +164,7 @@ def get_image(image_def, nocache, repository):
                                               branch=image_def.get('branch',
                                                                    'master'),
                                               nocache=nocache)
-        print('%s : Building of image completed' % image_def['name'])
+        logging.info('Get image {} completed'.format(image_def['name']))
     else:
         im = pull_image(image_def['remote'], image_def['name'], repository)
     return im
@@ -171,9 +172,9 @@ def get_image(image_def, nocache, repository):
 
 def push_image(name, imagename):
     docker = from_env(version='auto')
-    print('%s : Pushing as %s' % (name, imagename))
+    logging.info('%s : Pushing as %s' % (name, imagename))
     r = docker.images.push(imagename, "latest")
-    lastmsgs = []
+    last_msgs = []
     for line in r.split('\n'):
         if line != '':
             data = yaml.load(line)
@@ -184,10 +185,12 @@ def push_image(name, imagename):
                                                data['status'])
                 else:
                     msg = '%s: %s' % (name, data['status'])
-                    if msg not in lastmsgs:
-                        print(msg)
-                        lastmsgs.append(msg)
+                    if msg not in last_msgs:
+                        logging.debug(msg)
+                        last_msgs.append(msg)
                     elif 'error' in data:
+                        logging.error("Error building image {}:"
+                                "{}".format(imagename, "\n".join(last_msgs)))
                         raise Exception('%s ERROR when pushing: %s' %
                                         (name, data['error']))
     return True
@@ -202,7 +205,7 @@ def process_image(image_def, ns):
             get_image(image_def, ns.no_docker_cache, ns.repository)
         if not ns.build_only:
             if not ns.registry_ready.is_set():
-                print('%s : waiting for registry' % name)
+                logging.info('%s : waiting for registry' % name)
                 ns.registry_ready.wait()
             try:
                 if ns.proxy_repository is not '':
@@ -214,11 +217,9 @@ def process_image(image_def, ns):
             finally:
                 if ns.proxy_repository is not '':
                     docker.api.remove_image(ns.proxy_repository + name)
-            print('%s : succssfully pushed' % name)
+            logging.info('%s : succssfully pushed' % name)
     except Exception as e:
-        print('%s : failed with exception' % name, e)
-        from traceback import print_exc
-        print_exc()
+        logging.exception('%s : failed with exception' % name, e)
         ns.failure_occured.set()
 
 
@@ -266,8 +267,8 @@ def make_landscaper_file(chart_def, landscaper_dir):
 
     landscaper = yaml.dump(content, default_flow_style=False)
 
-    print('generated landscaper definition for {}:'.format(name))
-    print(landscaper)
+    logging.info('generated landscaper definition for {}:'.format(name))
+    logging.debug(landscaper)
 
     with open(join(landscaper_dir, chart_def.get("name")) + '.yaml', 'w') as f:
         f.write(landscaper)
@@ -292,12 +293,12 @@ def wait_for_registry(ns):
         try:
             docker.api.pull((ns.proxy_repository or ns.repository) + 'noimage')
             ns.registry_ready.set()
-            print('wait_for_registry: registry detected')
+            logging.info('wait_for_registry: registry detected')
             return
         except (APIError, NotFound):
             pass
         except Exception as e:
-            print('wait_for_registry : Failed with ', e)
+            logging.exception('wait_for_registry : Failed')
             ns.failure_occured.set()
             return
         finally:
@@ -312,12 +313,13 @@ def wait_for_procs(procs, ns):
         if ns.failure_occured.wait(0.1):
             for p in procs:
                 p.terminate()
-            print('Killed all processes')
+            logging.info('Killed all processes')
             return False
 
 
 def main():
     parser = ArgumentParser(description='Windlass products from other repos')
+    parser.add_argument('--debug', action='store_true', help='Enable debug logging')
     parser.add_argument('products', default=[], type=str, nargs='*',
                         help='List of products, devenv included by default.')
     parser.add_argument('--build-only', action='store_true',
@@ -334,6 +336,11 @@ def main():
     parser.add_argument('--no-docker-cache', action='store_true',
                         help='Use no-cache option in docker build')
     ns = parser.parse_args()
+
+    level = logging.DEBUG if ns.debug else logging.INFO
+    logging.basicConfig(level=level,
+                        format='%(asctime)s %(levelname)s %(message)s')
+
     ns.registry_ready = Event()
     ns.failure_occured = Event()
     products_to_build = ns.products + ['devenv']
@@ -351,19 +358,18 @@ def main():
     for product_file in glob('/sources/<dev-env>/products/*.yml'):
         product_name = splitext((basename(product_file)))[0]
         if product_name not in products_to_build:
-            print("%s will not be installed" % product_name)
+            logging.info("%s will not be installed" % product_name)
             continue
-        print("Windlassing images for %s" % product_name)
+        logging.info("Windlassing images for %s" % product_name)
         with open(product_file, 'r') as f:
             product_def = yaml.load(f.read())
-    #        print(product_def)
 
         if 'images' in product_def:
             for image_def in product_def['images']:
                 images.append(image_def)
         if 'charts' in product_def:
             for chart_def in product_def['charts']:
-                print(chart_def)
+                logging.debug(chart_def)
                 process_chart(chart_def, ns)
     d = defaultdict(list)
     for image_def in images:
@@ -381,10 +387,10 @@ def main():
             failed = True
 
     if failed:
-        print('Tried to windlass', ','.join(products_to_build))
+        logging.error('Failed to windlass: {}'.format(','.join(products_to_build)))
         exit(1)
     else:
-        print('Windlassed', ','.join(products_to_build))
+        logging.info('Windlassed: {}'.format(','.join(products_to_build)))
 
 
 if __name__ == '__main__':
