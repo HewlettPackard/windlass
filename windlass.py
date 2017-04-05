@@ -217,7 +217,7 @@ def process_image(image_def, ns):
             finally:
                 if ns.proxy_repository is not '':
                     docker.api.remove_image(ns.proxy_repository + name)
-            logging.info('%s : succssfully pushed' % name)
+            logging.info('%s : Successfully pushed' % name)
     except Exception as e:
         logging.exception('%s : failed with exception' % name, e)
         ns.failure_occured.set()
