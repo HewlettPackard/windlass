@@ -284,7 +284,7 @@ def process_chart(chart_def, ns):
     else:
         fetch_remote_chart(repository, chart, version)
 
-    make_landscaper_file(chart_def, '/charts/landscaper')
+    make_landscaper_file(chart_def, '/charts/landscaper-build')
 
 
 def wait_for_registry(ns):
