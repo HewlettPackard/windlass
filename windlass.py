@@ -239,7 +239,6 @@ def fetch_remote_chart(repo, chart, version):
 def package_local_chart(directory, chart):
     subprocess.call(
         ['helm', 'package', join('/sources/<dev-env>', directory, chart)])
-    subprocess.call(['ls'])
 
     for tgz in glob(chart + '*.tgz'):
         shutil.copy(tgz, '/charts')
