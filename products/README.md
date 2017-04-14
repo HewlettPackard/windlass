@@ -26,3 +26,30 @@ with branch_[branchname] which would be based on branch used
 during build.
 
 If image has tag `nowindlass` it will be ignored by windlass tool.
+
+For charts there has to have key 'charts' on top level dictionary, which would
+contain list of dictionatires with following fields:
+ - name: chart name
+If chart is coming from GIT repository there must be following fields:
+ - repo: linkt to repo or dot if <dev-env> repo is used
+ - location: directory in repo containing chart directory
+ - branch: optionally a branch to be used, default value is 'master'
+
+If repository is checked out at same level as <dev-env> then a working
+copy would be used and branch value will be ignored.
+
+If chart is coming from Helm repository there must be following fields:
+ - remote: URL to helm repository
+ - version: chart version
+
+ Example includes same charts in both ways:
+         charts:
+
+           - name: ceph-rgw
+             version: 0.1.0
+             remote: "https://pages.github.com/<org>/helm-repo/"
+
+           - name: ceph-rgw
+             branch: master
+             location: "."
+             repo: "https://github.com/<org>/helm-repo.git"
