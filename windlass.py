@@ -5,7 +5,7 @@ from argparse import ArgumentParser
 from glob import glob
 from multiprocessing import Process, Event
 from os import environ
-from os.path import join, basename, splitext, exists
+from os.path import join, basename, splitext, exists, split
 from tempfile import TemporaryDirectory
 import hashlib
 import logging
@@ -131,7 +131,7 @@ def pull_image(repopath, name, repository, tags=[]):
     return image
 
 
-def get_image(image_def, nocache, repository):
+def get_image(image_def, nocache, repository, repodir):
     docker = from_env(version='auto')
     try:
         im = docker.images.get(image_def['name'])
@@ -148,7 +148,7 @@ def get_image(image_def, nocache, repository):
     tags = image_def.get('tags', [])
     if 'repo' in image_def:
         if image_def['repo'] == '.':
-            repopath = '/sources/<dev-env>'
+            repopath = '/sources/' + repodir
         else:
             repopath = '/sources/%s' % guess_repo_name(image_def['repo'])
         if exists(join(repopath, '.git')):
@@ -202,7 +202,7 @@ def process_image(image_def, ns):
     name = image_def['name']
     try:
         if not ns.push_only:
-            get_image(image_def, ns.no_docker_cache, ns.repository)
+            get_image(image_def, ns.no_docker_cache, ns.repository, ns.repodir)
         if not ns.build_only:
             if not ns.registry_ready.is_set():
                 logging.info('%s: waiting for registry', name)
@@ -236,9 +236,9 @@ def fetch_remote_chart(repo, chart, version):
                     version_args)
 
 
-def package_local_chart(directory, chart):
+def package_local_chart(directory, chart, repodir):
     subprocess.call(
-        ['helm', 'package', join('/sources/<dev-env>', directory, chart)])
+        ['helm', 'package', join('/sources/' + repodir, directory, chart)])
 
     for tgz in glob(chart + '*.tgz'):
         shutil.copy(tgz, '/charts')
@@ -279,7 +279,7 @@ def process_chart(chart_def, ns):
     repository = chart_def['repository']
 
     if repository.startswith('./'):
-        package_local_chart(repository, chart)
+        package_local_chart(repository, chart, ns.repodir)
     else:
         fetch_remote_chart(repository, chart, version)
 
@@ -334,12 +334,13 @@ def main():
                              'for images.')
     parser.add_argument('--no-docker-cache', action='store_true',
                         help='Use no-cache option in docker build')
+    parser.add_argument('--hostpwd', type=str, required=True)
     ns = parser.parse_args()
-
+    ns.hostpath, ns.repodir = split(ns.hostpwd)
     level = logging.DEBUG if ns.debug else logging.INFO
     logging.basicConfig(level=level,
                         format='%(asctime)s %(levelname)s %(message)s')
-
+    logging.info('Windlass container is using %s directory mounted as /sources' % ns.hostpath)
     ns.registry_ready = Event()
     ns.failure_occured = Event()
     products_to_build = ns.products + ['devenv']
@@ -354,7 +355,7 @@ def main():
         waitproc.start()
     procs = []
 
-    for product_file in glob('/sources/<dev-env>/products/*.yml'):
+    for product_file in glob('/sources/' + ns.repodir + '/products/*.yml'):
         product_name = splitext((basename(product_file)))[0]
         if product_name not in products_to_build:
             logging.info("%s will not be installed", product_name)
