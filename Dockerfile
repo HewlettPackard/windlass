@@ -34,7 +34,6 @@ RUN set -e \
 
 ADD windlass.py /windlass.py
 
-VOLUME /sources
 VOLUME /var/run/docker.sock
 
 ENTRYPOINT ["/usr/bin/python3","/windlass.py"]

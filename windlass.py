@@ -153,9 +153,9 @@ def get_image(image_def, nocache, repository, repodir):
     tags = image_def.get('tags', [])
     if 'repo' in image_def:
         if image_def['repo'] == '.':
-            repopath = '/sources/' + repodir
+            repopath = './' + repodir
         else:
-            repopath = '/sources/%s' % guess_repo_name(image_def['repo'])
+            repopath = './%s' % guess_repo_name(image_def['repo'])
         if exists(join(repopath, '.git')):
             im = build_image_from_local_repo(repopath, image_def['context'],
                                              image_def['name'],
@@ -228,7 +228,7 @@ def process_image(image_def, ns):
         ns.failure_occured.set()
 
 
-def fetch_remote_chart(repo, chart, version):
+def fetch_remote_chart(repo, chart, version, output_dir):
     repo_name = hashlib.sha1(repo.encode('utf-8')).hexdigest()[:20]
     subprocess.call(['helm', 'repo', 'add', repo_name, repo])
 
@@ -237,16 +237,15 @@ def fetch_remote_chart(repo, chart, version):
     else:
         version_args = []
 
-    subprocess.call(['helm', 'fetch', repo_name+'/'+chart, '-d', '/charts'] +
+    subprocess.call(['helm', 'fetch', repo_name+'/'+chart, '-d', output_dir] +
                     version_args)
 
 
-def package_local_chart(directory, chart, repodir):
+def package_local_chart(directory, chart, repodir, chartdir):
     subprocess.call(
-        ['helm', 'package', join('/sources/' + repodir, directory, chart)])
-
-    for tgz in glob(chart + '*.tgz'):
-        shutil.copy(tgz, '/charts')
+        ['helm', 'package',
+         os.path.abspath(join(".", repodir, directory, chart))],
+        cwd=chartdir)
 
 
 def make_landscaper_file(chart_def, landscaper_dir):
@@ -281,30 +280,32 @@ def process_chart(chart_def, ns):
 
     chart = chart_def['name']
     if 'repo' in chart_def:
-        package_chart(chart_def, ns.repodir)
+        package_chart(chart_def, ns.repodir, ns.charts_directory)
     elif 'remote' in chart_def:
         version = chart_def['version']
         repository = chart_def['remote']
-        fetch_remote_chart(repository, chart, version)
+        fetch_remote_chart(repository, chart, version, ns.charts_directory)
     else:
         errmsg = 'Chart %s has no git or helm repo defined and cannot be processed' % chart
         logging.error(errmsg)
         raise Exception(errmsg)
-    make_landscaper_file(chart_def, '/charts/landscaper-build')
+    make_landscaper_file(chart_def,
+                         os.path.join(ns.charts_directory,
+                                      'landscaper-build'))
 
 
-def package_chart(chart_def, repodir):
+def package_chart(chart_def, repodir, chartdir):
 
     if chart_def['repo'] == '.':
-        repopath = '/sources/' + repodir
+        repopath = '.'
     else:
-        repopath = join('/sources', guess_repo_name(chart_def['repo']))
+        repopath = guess_repo_name(chart_def['repo'])
 
     if exists(repopath):
         logging.info('%s: Packaging chart from local directory %s'
                      % (chart_def['name'], repopath))
         package_local_chart(join(repopath, chart_def['location']),
-                            chart_def['name'], repodir)
+                            chart_def['name'], repodir, chartdir)
     else:
         with TemporaryDirectory() as tempdir:
             branch = chart_def.get('branch', 'master')
@@ -314,7 +315,7 @@ def package_chart(chart_def, repodir):
                                    branch=branch, depth=1,
                                    single_branch=True)
             package_local_chart(join(tempdir, chart_def['location']),
-                                chart_def['name'], repodir)
+                                chart_def['name'], repodir, chartdir)
 
 
 def wait_for_registry(ns):
@@ -375,13 +376,27 @@ def main():
                              'for images.')
     parser.add_argument('--no-docker-cache', action='store_true',
                         help='Use no-cache option in docker build')
-    parser.add_argument('--hostpwd', type=str, required=True)
+    parser.add_argument('--directory', type=str,
+                        default=os.path.abspath(os.path.curdir),
+                        help='Directory to run windlass under, will change to '
+                             'this path before processing any files '
+                             '(default: %(default)s)')
+    parser.add_argument('--charts-directory', type=str,
+                        help='Path to write charts out to for processing '
+                             '(default: <directory>/charts).')
     ns = parser.parse_args()
-    ns.hostpath, ns.repodir = split(ns.hostpwd)
+    # set additional defaults based on options parsed
+    if not ns.charts_directory:
+        ns.charts_directory = os.path.join(ns.directory, 'charts')
+
+    parentdir, ns.repodir = split(ns.directory)
+    os.chdir(parentdir)
     level = logging.DEBUG if ns.debug else logging.INFO
     logging.basicConfig(level=level,
                         format='%(asctime)s %(levelname)s %(message)s')
-    logging.info('Windlass container is using %s directory mounted as /sources' % ns.hostpath)
+
+    logging.info("Sources directory: '%s'", ns.directory)
+    logging.info("Charts directory: '%s'", ns.charts_directory)
     ns.registry_ready = Event()
     ns.failure_occured = Event()
     products_to_build = ns.products + ['devenv']
@@ -396,9 +411,8 @@ def main():
         waitproc.start()
     procs = []
 
-    logging.info("looking for products under %s/%s/products/*.yml",
-                 ns.hostpath, ns.repodir)
-    products = glob('/sources/' + ns.repodir + '/products/*.yml')
+    logging.info("looking for products under %s/products/*.yml", ns.directory)
+    products = glob(os.path.join(ns.directory, 'products', '*.yml'))
     logging.debug("Found products: %s" % products)
     for product_file in products:
         product_name = splitext((basename(product_file)))[0]
