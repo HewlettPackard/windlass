@@ -367,7 +367,7 @@ def main():
                         help='Build images but does not publish them')
     parser.add_argument('--push-only', action='store_true',
                         help='Publish images only')
-    parser.add_argument('--repository', type=str, default='<remote>',
+    parser.add_argument('--repository', type=str, default='',
                         help='Docker registry where images can be published')
     parser.add_argument('--proxy-repository', type=str, default='',
                         help='Alternative address to use temporarily when it '
@@ -385,6 +385,10 @@ def main():
                         help='Path to write charts out to for processing '
                              '(default: <directory>/charts).')
     ns = parser.parse_args()
+    # do any complex argument error condition checking
+    if not ns.repository and not ns.build_only:
+        parser.error("--repository required unless --build-only specified")
+
     # set additional defaults based on options parsed
     if not ns.charts_directory:
         ns.charts_directory = os.path.join(ns.directory, 'charts')
@@ -400,7 +404,7 @@ def main():
     ns.registry_ready = Event()
     ns.failure_occured = Event()
     products_to_build = ns.products + ['devenv']
-    if not ns.repository.endswith('/'):
+    if ns.repository and not ns.repository.endswith('/'):
         ns.repository = ns.repository + '/'
     if ns.proxy_repository and not ns.proxy_repository.endswith('/'):
         ns.proxy_repository = ns.proxy_repository + '/'
