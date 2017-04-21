@@ -12,6 +12,7 @@ import logging
 import os
 import shutil
 import subprocess
+import time
 
 from git import Repo
 from docker import from_env
@@ -291,13 +292,23 @@ def process_chart(chart_def, ns):
 
 
 def wait_for_registry(ns):
+
     docker = from_env(version='auto')
+    registry = ns.proxy_repository or ns.repository
     while True:
         try:
-            docker.api.pull((ns.proxy_repository or ns.repository) + 'noimage')
-            ns.registry_ready.set()
-            logging.info('wait_for_registry: registry detected')
-            return
+            result = docker.api.pull(registry + 'noimage')
+            # result is a simple string of the json response, check if either
+            # the requested image was found, or explicitly "not found" to
+            # determine if the docker deamon can reach the desired registry
+            if ("Digest: sha256" in result or
+                    "Error: image noimage not found" in result):
+                ns.registry_ready.set()
+                logging.info('wait_for_registry: registry detected')
+                return
+
+            time.sleep(1)
+            continue
         except (APIError, NotFound):
             pass
         except Exception as e:
