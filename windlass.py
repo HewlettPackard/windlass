@@ -57,15 +57,19 @@ def build_verbosly(name, path, repository, nocache=False):
                               buildargs=bargs,
                               stream=True)
     errors = []
+    output = []
     for line in stream:
         data = yaml.load(line.decode())
         if 'stream' in data:
             for out in data['stream'].split('\n\r'):
                 logging.debug('%s: %s', name, out.strip())
+                # capture detailed output in case of error
+                output.append(out)
         elif 'error' in data:
             errors.append(data['error'])
     if errors:
         logging.error('Failed to build %s:\n%s', name, '\n'.join(errors))
+        logging.error('Output from building %s:\n%s', name, ''.join(output))
         raise Exception("Failed to build {}".format(name))
     logging.info("Successfully built %s from path %s", name, path)
     return docker.images.get(repository+name)
@@ -355,7 +359,11 @@ def main():
         waitproc.start()
     procs = []
 
-    for product_file in glob('/sources/' + ns.repodir + '/products/*.yml'):
+    logging.info("looking for products under %s/%s/products/*.yml",
+                 ns.hostpath, ns.repodir)
+    products = glob('/sources/' + ns.repodir + '/products/*.yml')
+    logging.debug("Found products: %s" % products)
+    for product_file in products:
         product_name = splitext((basename(product_file)))[0]
         if product_name not in products_to_build:
             logging.info("%s will not be installed", product_name)
