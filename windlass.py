@@ -279,16 +279,43 @@ def make_landscaper_file(chart_def, landscaper_dir):
 
 
 def process_chart(chart_def, ns):
-    version = chart_def['version']
-    chart = chart_def['chart']
-    repository = chart_def['repository']
 
-    if repository.startswith('./'):
-        package_local_chart(repository, chart, ns.repodir)
-    else:
+    chart = chart_def['name']
+    if 'repo' in chart_def:
+        package_chart(chart_def, ns.repodir)
+    elif 'remote' in chart_def:
+        version = chart_def['version']
+        repository = chart_def['remote']
         fetch_remote_chart(repository, chart, version)
-
+    else:
+        errmsg = 'Chart %s has no git or helm repo defined and cannot be processed' % chart
+        logging.error(errmsg)
+        raise Exception(errmsg)
     make_landscaper_file(chart_def, '/charts/landscaper-build')
+
+
+def package_chart(chart_def, repodir):
+
+    if chart_def['repo'] == '.':
+        repopath = '/sources/' + repodir
+    else:
+        repopath = join('/sources', guess_repo_name(chart_def['repo']))
+
+    if exists(repopath):
+        logging.info('%s: Packaging chart from local directory %s'
+                     % (chart_def['name'], repopath))
+        package_local_chart(join(repopath, chart_def['location']),
+                            chart_def['name'], repodir)
+    else:
+        with TemporaryDirectory() as tempdir:
+            branch = chart_def.get('branch', 'master')
+            logging.info('%s: Packaging chart from git repository %s branch %s'
+                        % (chart_def['name'], chart_def['repo'], branch))
+            repo = Repo.clone_from(chart_def['repo'], tempdir,
+                                   branch=branch, depth=1,
+                                   single_branch=True)
+            package_local_chart(join(tempdir, chart_def['location']),
+                                chart_def['name'], repodir)
 
 
 def wait_for_registry(ns):
@@ -382,7 +409,6 @@ def main():
         logging.info("Windlassing images for %s", product_name)
         with open(product_file, 'r') as f:
             product_def = yaml.load(f.read())
-
         if 'images' in product_def:
             for image_def in product_def['images']:
                 images.append(image_def)
@@ -390,6 +416,7 @@ def main():
             for chart_def in product_def['charts']:
                 logging.debug(chart_def)
                 process_chart(chart_def, ns)
+
     d = defaultdict(list)
     for image_def in images:
         k = image_def.get('priority', 0)
