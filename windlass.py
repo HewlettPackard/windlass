@@ -252,14 +252,13 @@ def package_local_chart(directory, chart, repodir):
 def make_landscaper_file(chart_def, landscaper_dir):
     name = chart_def.get("name")
     version = chart_def.get("version")
-    chart = chart_def.get("chart")
     configuration = chart_def.get("configuration")
 
     content = {
         "name": name,
         "release": {
             "chart": "ncs/{name}:{version}".format(
-                name=chart,
+                name=name,
                 version=version),
             "version": version,
         },
