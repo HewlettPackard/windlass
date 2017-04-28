@@ -248,34 +248,6 @@ def package_local_chart(directory, chart, repodir, chartdir):
         cwd=chartdir)
 
 
-def make_landscaper_file(chart_def, landscaper_dir):
-    name = chart_def.get("name")
-    version = chart_def.get("version")
-    configuration = chart_def.get("configuration")
-
-    content = {
-        "name": name,
-        "release": {
-            "chart": "ncs/{name}:{version}".format(
-                name=name,
-                version=version),
-            "version": version,
-        },
-        "configuration": configuration,
-    }
-
-    if not os.path.exists(landscaper_dir):
-        os.makedirs(landscaper_dir)
-
-    landscaper = yaml.dump(content, default_flow_style=False)
-
-    logging.info('generated landscaper definition for %s', name)
-    logging.debug(landscaper)
-
-    with open(join(landscaper_dir, chart_def.get("name")) + '.yaml', 'w') as f:
-        f.write(landscaper)
-
-
 def process_chart(chart_def, ns):
 
     chart = chart_def['name']
@@ -289,9 +261,6 @@ def process_chart(chart_def, ns):
         errmsg = 'Chart %s has no git or helm repo defined and cannot be processed' % chart
         logging.error(errmsg)
         raise Exception(errmsg)
-    make_landscaper_file(chart_def,
-                         os.path.join(ns.charts_directory,
-                                      'landscaper-build'))
 
 
 def package_chart(chart_def, repodir, chartdir):
