@@ -29,12 +29,8 @@ def guess_repo_name(repourl):
 
 
 def load_proxy():
-    env = {}
-    if 'http_proxy' in environ:
-        env['http_proxy'] = environ['http_proxy']
-    if 'https_proxy' in environ:
-        env['https_proxy'] = environ['https_proxy']
-    return env
+    proxy_keys = ('http_proxy', 'https_proxy', 'no_proxy')
+    return {key: environ[key] for key in proxy_keys if key in environ}
 
 
 def clean_tag(tag):
