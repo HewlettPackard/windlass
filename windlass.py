@@ -372,7 +372,6 @@ def main():
     logging.info("Charts directory: '%s'", ns.charts_directory)
     ns.registry_ready = Event()
     ns.failure_occured = Event()
-    products_to_build = ns.products + ['devenv']
     if ns.repository and not ns.repository.endswith('/'):
         ns.repository = ns.repository + '/'
     if ns.proxy_repository and not ns.proxy_repository.endswith('/'):
@@ -389,7 +388,7 @@ def main():
     logging.debug("Found products: %s" % products)
     for product_file in products:
         product_name = splitext((basename(product_file)))[0]
-        if product_name not in products_to_build:
+        if product_name not in ns.products:
             logging.info("%s will not be installed", product_name)
             continue
         logging.info("Windlassing images for %s", product_name)
@@ -419,10 +418,10 @@ def main():
             failed = True
 
     if failed:
-        logging.error('Failed to windlass: %s', ','.join(products_to_build))
+        logging.error('Failed to windlass: %s', ','.join(ns.products))
         exit(1)
     else:
-        logging.info('Windlassed: %s', ','.join(products_to_build))
+        logging.info('Windlassed: %s', ','.join(ns.products))
 
 
 if __name__ == '__main__':
