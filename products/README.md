@@ -15,6 +15,7 @@ Optionally:
  - branch: branch that you want to use, default is master, applicable only to built images
  - description: Image description, it is currently used for help section of cloud config
  - template_variable: Name of variable for jinja2 contexts used by cloud config
+ - dockerfile: path to docker file inside context, as one would pass in '-f' option in docker build
 
 If particular repo is checked out then values of repo and branch would be
 ignored and checked out copy would be used.
