@@ -44,7 +44,7 @@ def clean_tag(tag):
     return clean[:128]
 
 
-def build_verbosly(name, path, repository, nocache=False):
+def build_verbosly(name, path, repository, nocache=False, dockerfile=None):
     docker = from_env(version='auto')
     bargs = load_proxy()
     logging.info("Building %s from path %s", name, path)
@@ -52,6 +52,7 @@ def build_verbosly(name, path, repository, nocache=False):
                               tag=repository+name,
                               nocache=nocache,
                               buildargs=bargs,
+                              dockerfile=dockerfile,
                               stream=True)
     errors = []
     output = []
@@ -73,7 +74,7 @@ def build_verbosly(name, path, repository, nocache=False):
 
 
 def build_image_from_remote_repo(repourl, imagepath, name, repository, tags=[],
-                                 branch='master', nocache=False):
+                                 branch='master', nocache=False, dockerfile=None):
     logging.info('%s: Building image located in directory %s in repository %s',
                  name, imagepath, repourl)
     docker = from_env(version='auto')
@@ -81,7 +82,7 @@ def build_image_from_remote_repo(repourl, imagepath, name, repository, tags=[],
         repo = Repo.clone_from(repourl, tempdir, branch=branch, depth=1,
                                single_branch=True)
         image = build_verbosly(name, join(tempdir, imagepath), repository,
-                               nocache=nocache)
+                               nocache=nocache, dockerfile=dockerfile)
         image.tag(repository + name,
                   clean_tag('ref_' + repo.active_branch.commit.hexsha))
         image.tag(repository + name,
@@ -90,13 +91,13 @@ def build_image_from_remote_repo(repourl, imagepath, name, repository, tags=[],
 
 
 def build_image_from_local_repo(repopath, imagepath, name, repository, tags=[],
-                                nocache=False):
+                                nocache=False, dockerfile=None):
     docker = from_env(version='auto')
     logging.info('%s: Building image from local directory %s',
                  name, join(repopath, imagepath))
     repo = Repo(repopath)
     image = build_verbosly(name, join(repopath, imagepath), repository,
-                           nocache=nocache)
+                           nocache=nocache, dockerfile=dockerfile)
     if repo.head.is_detached:
         commit = repo.head.commit.hexsha
     else:
@@ -152,11 +153,13 @@ def get_image(image_def, nocache, repository, repodir):
             repopath = './' + repodir
         else:
             repopath = './%s' % guess_repo_name(image_def['repo'])
+        dockerfile = image_def.get('dockerfile', None)
         if exists(join(repopath, '.git')):
             im = build_image_from_local_repo(repopath, image_def['context'],
                                              image_def['name'],
                                              repository=repository,
-                                             nocache=nocache)
+                                             nocache=nocache,
+                                             dockerfile=dockerfile)
         else:
             im = build_image_from_remote_repo(image_def['repo'],
                                               image_def['context'],
@@ -164,7 +167,8 @@ def get_image(image_def, nocache, repository, repodir):
                                               repository=repository,
                                               branch=image_def.get('branch',
                                                                    'master'),
-                                              nocache=nocache)
+                                              nocache=nocache,
+                                              dockerfile=dockerfile)
         logging.info('Get image %s completed', image_def['name'])
     else:
         im = pull_image(image_def['remote'], image_def['name'], repository)
