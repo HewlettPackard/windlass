@@ -1,24 +1,39 @@
 #!/bin/env python3
+#
+# (c) Copyright 2017 Hewlett Packard Enterprise Development LP
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License. You may obtain
+# a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+#
 
-from collections import defaultdict
 from argparse import ArgumentParser
+from collections import defaultdict
 from glob import glob
-from multiprocessing import Process, Event
-from os import environ
-from os.path import join, basename, splitext, exists, split
-from tempfile import TemporaryDirectory
 import hashlib
 import logging
+from multiprocessing import Event
+from multiprocessing import Process
 import os
-import shutil
+import os.path
 import subprocess
+from tempfile import TemporaryDirectory
 import time
 
-from git import Repo
+from docker.errors import APIError
+from docker.errors import ImageNotFound
+from docker.errors import NotFound
 from docker import from_env
-from docker.errors import ImageNotFound, NotFound, APIError
+from git import Repo
 import yaml
-from time import sleep
 
 
 def guess_repo_name(repourl):
@@ -30,7 +45,7 @@ def guess_repo_name(repourl):
 
 def load_proxy():
     proxy_keys = ('http_proxy', 'https_proxy', 'no_proxy')
-    return {key: environ[key] for key in proxy_keys if key in environ}
+    return {key: os.environ[key] for key in proxy_keys if key in os.environ}
 
 
 def clean_tag(tag):
@@ -73,16 +88,19 @@ def build_verbosly(name, path, repository, nocache=False, dockerfile=None):
     return docker.images.get(repository+name)
 
 
-def build_image_from_remote_repo(repourl, imagepath, name, repository, tags=[],
-                                 branch='master', nocache=False, dockerfile=None):
+def build_image_from_remote_repo(
+        repourl, imagepath, name, repository, tags=[],
+        branch='master', nocache=False, dockerfile=None):
     logging.info('%s: Building image located in directory %s in repository %s',
                  name, imagepath, repourl)
-    docker = from_env(version='auto')
     with TemporaryDirectory() as tempdir:
         repo = Repo.clone_from(repourl, tempdir, branch=branch, depth=1,
                                single_branch=True)
-        image = build_verbosly(name, join(tempdir, imagepath), repository,
-                               nocache=nocache, dockerfile=dockerfile)
+        image = build_verbosly(name,
+                               os.path.join(tempdir, imagepath),
+                               repository,
+                               nocache=nocache,
+                               dockerfile=dockerfile)
         image.tag(repository + name,
                   clean_tag('ref_' + repo.active_branch.commit.hexsha))
         image.tag(repository + name,
@@ -92,11 +110,10 @@ def build_image_from_remote_repo(repourl, imagepath, name, repository, tags=[],
 
 def build_image_from_local_repo(repopath, imagepath, name, repository, tags=[],
                                 nocache=False, dockerfile=None):
-    docker = from_env(version='auto')
     logging.info('%s: Building image from local directory %s',
-                 name, join(repopath, imagepath))
+                 name, os.path.join(repopath, imagepath))
     repo = Repo(repopath)
-    image = build_verbosly(name, join(repopath, imagepath), repository,
+    image = build_verbosly(name, os.path.join(repopath, imagepath), repository,
                            nocache=nocache, dockerfile=dockerfile)
     if repo.head.is_detached:
         commit = repo.head.commit.hexsha
@@ -140,8 +157,9 @@ def get_image(image_def, nocache, repository, repodir):
         repos, tags = zip(*(t.split(':') for t in im.tags))
 
         if 'nowindlass' in tags:
-            logging.info('%s: Image will not be pulled or build as it has nowindlass '
-                         'tag', image_def['name'])
+            logging.info(
+                '%s: Image will not be pulled or build as it has nowindlass '
+                'tag', image_def['name'])
             if not repository + image_def['name'] in repos:
                 docker.api.tag(im.id, repository + image_def['name'], 'latest')
             return im
@@ -154,7 +172,7 @@ def get_image(image_def, nocache, repository, repodir):
         else:
             repopath = './%s' % guess_repo_name(image_def['repo'])
         dockerfile = image_def.get('dockerfile', None)
-        if exists(join(repopath, '.git')):
+        if os.path.exists(os.path.join(repopath, '.git')):
             im = build_image_from_local_repo(repopath, image_def['context'],
                                              image_def['name'],
                                              repository=repository,
@@ -195,7 +213,7 @@ def push_image(name, imagename):
                         last_msgs.append(msg)
                     elif 'error' in data:
                         logging.error("Error building image %s:"
-                                "%s", imagename, "\n".join(last_msgs))
+                                      "%s", imagename, "\n".join(last_msgs))
                         raise Exception('%s ERROR when pushing: %s' %
                                         (name, data['error']))
     return True
@@ -223,7 +241,7 @@ def process_image(image_def, ns):
                 if ns.proxy_repository is not '':
                     docker.api.remove_image(ns.proxy_repository + name)
             logging.info('%s: Successfully pushed', name)
-    except Exception as e:
+    except Exception:
         logging.exception('Processing image %s failed with exception', name)
         ns.failure_occured.set()
 
@@ -244,7 +262,7 @@ def fetch_remote_chart(repo, chart, version, output_dir):
 def package_local_chart(directory, chart, repodir, chartdir):
     subprocess.call(
         ['helm', 'package',
-         os.path.abspath(join(".", repodir, directory, chart))],
+         os.path.abspath(os.path.join(".", repodir, directory, chart))],
         cwd=chartdir)
 
 
@@ -258,7 +276,8 @@ def process_chart(chart_def, ns):
         repository = chart_def['remote']
         fetch_remote_chart(repository, chart, version, ns.charts_directory)
     else:
-        errmsg = 'Chart %s has no git or helm repo defined and cannot be processed' % chart
+        errmsg = ('Chart %s has no git or helm repo defined '
+                  'and cannot be processed' % chart)
         logging.error(errmsg)
         raise Exception(errmsg)
 
@@ -270,21 +289,25 @@ def package_chart(chart_def, repodir, chartdir):
     else:
         repopath = guess_repo_name(chart_def['repo'])
 
-    if exists(repopath):
+    if os.path.exists(repopath):
         logging.info('%s: Packaging chart from local directory %s'
                      % (chart_def['name'], repopath))
-        package_local_chart(join(repopath, chart_def['location']),
+        package_local_chart(os.path.join(repopath, chart_def['location']),
                             chart_def['name'], repodir, chartdir)
     else:
         with TemporaryDirectory() as tempdir:
             branch = chart_def.get('branch', 'master')
             logging.info('%s: Packaging chart from git repository %s branch %s'
-                        % (chart_def['name'], chart_def['repo'], branch))
-            repo = Repo.clone_from(chart_def['repo'], tempdir,
-                                   branch=branch, depth=1,
-                                   single_branch=True)
-            package_local_chart(join(tempdir, chart_def['location']),
-                                chart_def['name'], repodir, chartdir)
+                         % (chart_def['name'], chart_def['repo'], branch))
+            Repo.clone_from(chart_def['repo'],
+                            tempdir,
+                            branch=branch,
+                            depth=1,
+                            single_branch=True)
+            package_local_chart(os.path.join(tempdir, chart_def['location']),
+                                chart_def['name'],
+                                repodir,
+                                chartdir)
 
 
 def wait_for_registry(ns):
@@ -307,7 +330,7 @@ def wait_for_registry(ns):
             continue
         except (APIError, NotFound):
             pass
-        except Exception as e:
+        except Exception:
             logging.exception('wait_for_registry: Failed')
             ns.failure_occured.set()
             return
@@ -329,7 +352,8 @@ def wait_for_procs(procs, ns):
 
 def main():
     parser = ArgumentParser(description='Windlass products from other repos')
-    parser.add_argument('--debug', action='store_true', help='Enable debug logging')
+    parser.add_argument('--debug', action='store_true',
+                        help='Enable debug logging')
     parser.add_argument('products', default=[], type=str, nargs='*',
                         help='List of products, devenv included by default.')
     parser.add_argument('--build-only', action='store_true',
@@ -362,7 +386,7 @@ def main():
     if not ns.charts_directory:
         ns.charts_directory = os.path.join(ns.directory, 'charts')
 
-    parentdir, ns.repodir = split(ns.directory)
+    parentdir, ns.repodir = os.path.split(ns.directory)
     os.chdir(parentdir)
     level = logging.DEBUG if ns.debug else logging.INFO
     logging.basicConfig(level=level,
@@ -387,7 +411,7 @@ def main():
     products = glob(os.path.join(ns.directory, 'products', '*.yml'))
     logging.debug("Found products: %s" % products)
     for product_file in products:
-        product_name = splitext((basename(product_file)))[0]
+        product_name = os.path.splitext((os.path.basename(product_file)))[0]
         if product_name not in ns.products:
             logging.info("%s will not be installed", product_name)
             continue

@@ -13,7 +13,13 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
+---
 
-docker==2.2.0
-gitpython==2.1.3
-pyyaml==3.12
+description: "Image for Windlass"
+
+images:
+
+  - name: zing/windlass
+    repo: .
+    context: .
+    description: "Windlass"

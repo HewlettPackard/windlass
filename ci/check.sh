@@ -1,3 +1,4 @@
+#!/bin/bash
 #
 # (c) Copyright 2017 Hewlett Packard Enterprise Development LP
 #
@@ -14,6 +15,11 @@
 # under the License.
 #
 
-docker==2.2.0
-gitpython==2.1.3
-pyyaml==3.12
+set -eu
+set -o pipefail
+
+# Pep8 checks
+tox -epep8
+
+# Build Windlass image
+tox -ebuild
