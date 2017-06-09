@@ -17,6 +17,7 @@
 
 from argparse import ArgumentParser
 from collections import defaultdict
+import datetime
 from glob import glob
 import hashlib
 import logging
@@ -196,6 +197,10 @@ def get_image(image_def, nocache, repository, repodir):
 def push_image(name, imagename):
     docker = from_env(version='auto')
     logging.info('%s: Pushing as %s', name, imagename)
+
+    # raises exception if imagename is missing
+    docker.images.get(imagename + ":latest")
+
     r = docker.images.push(imagename, "latest")
     last_msgs = []
     for line in r.split('\n'):
@@ -310,11 +315,18 @@ def package_chart(chart_def, repodir, chartdir):
                                 chartdir)
 
 
-def wait_for_registry(ns):
-
+def wait_for_registry(ns, wait=600):
     docker = from_env(version='auto')
     registry = ns.proxy_repository or ns.repository
+    timeout = datetime.datetime.now() + datetime.timedelta(seconds=wait)
     while True:
+        if datetime.datetime.now() > timeout:
+            ns.failure_occured.set()
+            logging.exception(
+                'wait_for_registry %s timeout after %d seconds' % (
+                    registry, wait))
+            return
+
         try:
             result = docker.api.pull(registry + 'noimage')
             # result is a simple string of the json response, check if either
@@ -341,13 +353,14 @@ def wait_for_registry(ns):
 
 def wait_for_procs(procs, ns):
     while True:
-        if len([p for p in procs if p.is_alive()]) == 0:
-            return True
         if ns.failure_occured.wait(0.1):
             for p in procs:
                 p.terminate()
             logging.info('Killed all processes')
             return False
+
+        if len([p for p in procs if p.is_alive()]) == 0:
+            return True
 
 
 def main():
@@ -378,9 +391,15 @@ def main():
                         help='Path to write charts out to for processing '
                              '(default: <directory>/charts).')
     ns = parser.parse_args()
+
     # do any complex argument error condition checking
-    if not ns.repository and not ns.build_only:
-        parser.error("--repository required unless --build-only specified")
+    if not (ns.repository or ns.proxy_repository) and not ns.build_only:
+        parser.error("--repository (or --proxy-repository) required "
+                     "unless --build-only specified")
+
+    if ns.build_only and ns.push_only:
+        parser.error(
+            "--build-only and --push-only can't be specified at the same time")
 
     # set additional defaults based on options parsed
     if not ns.charts_directory:
@@ -400,12 +419,13 @@ def main():
         ns.repository = ns.repository + '/'
     if ns.proxy_repository and not ns.proxy_repository.endswith('/'):
         ns.proxy_repository = ns.proxy_repository + '/'
-    images = []
+
     if not ns.build_only:
         waitproc = Process(target=wait_for_registry,
                            args=(ns,), name='wait_for_registry')
         waitproc.start()
-    procs = []
+
+    images = []
 
     logging.info("looking for products under %s/products/*.yml", ns.directory)
     products = glob(os.path.join(ns.directory, 'products', '*.yml'))
@@ -425,6 +445,8 @@ def main():
             for chart_def in product_def['charts']:
                 logging.debug(chart_def)
                 process_chart(chart_def, ns)
+
+    procs = []
 
     d = defaultdict(list)
     for image_def in images:
