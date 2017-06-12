@@ -60,7 +60,8 @@ def clean_tag(tag):
     return clean[:128]
 
 
-def build_verbosly(name, path, repository, nocache=False, dockerfile=None):
+def build_verbosly(name, path, repository, nocache=False, dockerfile=None,
+                   pull=False):
     docker = from_env(version='auto')
     bargs = load_proxy()
     logging.info("Building %s from path %s", name, path)
@@ -69,7 +70,8 @@ def build_verbosly(name, path, repository, nocache=False, dockerfile=None):
                               nocache=nocache,
                               buildargs=bargs,
                               dockerfile=dockerfile,
-                              stream=True)
+                              stream=True,
+                              pull=pull)
     errors = []
     output = []
     for line in stream:
@@ -91,7 +93,7 @@ def build_verbosly(name, path, repository, nocache=False, dockerfile=None):
 
 def build_image_from_remote_repo(
         repourl, imagepath, name, repository, tags=[],
-        branch='master', nocache=False, dockerfile=None):
+        branch='master', nocache=False, dockerfile=None, pull=False):
     logging.info('%s: Building image located in directory %s in repository %s',
                  name, imagepath, repourl)
     with TemporaryDirectory() as tempdir:
@@ -101,7 +103,8 @@ def build_image_from_remote_repo(
                                os.path.join(tempdir, imagepath),
                                repository,
                                nocache=nocache,
-                               dockerfile=dockerfile)
+                               dockerfile=dockerfile,
+                               pull=pull)
         image.tag(repository + name,
                   clean_tag('ref_' + repo.active_branch.commit.hexsha))
         image.tag(repository + name,
@@ -110,7 +113,7 @@ def build_image_from_remote_repo(
 
 
 def build_image_from_local_repo(repopath, imagepath, name, repository, tags=[],
-                                nocache=False, dockerfile=None):
+                                nocache=False, dockerfile=None, pull=False):
     logging.info('%s: Building image from local directory %s',
                  name, os.path.join(repopath, imagepath))
     repo = Repo(repopath)
@@ -151,7 +154,7 @@ def pull_image(repopath, name, repository, tags=[]):
     return image
 
 
-def get_image(image_def, nocache, repository, repodir):
+def get_image(image_def, nocache, repository, repodir, pull=False):
     docker = from_env(version='auto')
     try:
         im = docker.images.get(image_def['name'])
@@ -178,7 +181,8 @@ def get_image(image_def, nocache, repository, repodir):
                                              image_def['name'],
                                              repository=repository,
                                              nocache=nocache,
-                                             dockerfile=dockerfile)
+                                             dockerfile=dockerfile,
+                                             pull=pull)
         else:
             im = build_image_from_remote_repo(image_def['repo'],
                                               image_def['context'],
@@ -187,7 +191,8 @@ def get_image(image_def, nocache, repository, repodir):
                                               branch=image_def.get('branch',
                                                                    'master'),
                                               nocache=nocache,
-                                              dockerfile=dockerfile)
+                                              dockerfile=dockerfile,
+                                              pull=pull)
         logging.info('Get image %s completed', image_def['name'])
     else:
         im = pull_image(image_def['remote'], image_def['name'], repository)
@@ -230,7 +235,8 @@ def process_image(image_def, ns):
     name = image_def['name']
     try:
         if not ns.push_only:
-            get_image(image_def, ns.no_docker_cache, ns.repository, ns.repodir)
+            get_image(image_def, ns.no_docker_cache, ns.repository, ns.repodir,
+                      ns.docker_pull)
         if not ns.build_only:
             if not ns.registry_ready.is_set():
                 logging.info('%s: waiting for registry', name)
@@ -382,6 +388,8 @@ def main():
                              'for images.')
     parser.add_argument('--no-docker-cache', action='store_true',
                         help='Use no-cache option in docker build')
+    parser.add_argument('--docker-pull', action='store_true',
+                        help='Use pull option in docker build')
     parser.add_argument('--directory', type=str,
                         default=os.path.abspath(os.path.curdir),
                         help='Directory to run windlass under, will change to '
