@@ -12,37 +12,4 @@
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and limitations
 # under the License.
-#
-
-[tox]
-minversion = 1.9
-skipsdist = True
-envlist = pep8,build
-
-[testenv]
-skip_install = True
-basepython=python3
-envdir = {toxworkdir}/venv
-deps = -r{toxinidir}/requirements.txt
-       -r{toxinidir}/test-requirements.txt
-
-passenv =
-    http_proxy
-    https_proxy
-    no_proxy
-
-[testenv:pep8]
-commands = flake8 {posargs}
-
-[testenv:venv]
-commands =
-  python {toxinidir}/windlass.py {posargs}
-
-[testenv:build]
-commands = python {toxinidir}/windlass.py \
-    --directory {toxinidir}/ \
-    --build-only \
-    dev {posargs}
-
-[testenv:tests]
-commands = python setup.py testr --slowest --testr-args='{posargs}'
+pass

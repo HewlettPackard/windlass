@@ -14,35 +14,13 @@
 # under the License.
 #
 
-[tox]
-minversion = 1.9
-skipsdist = True
-envlist = pep8,build
+from requests import get
+import testtools
+from testtools.matchers import Equals
 
-[testenv]
-skip_install = True
-basepython=python3
-envdir = {toxworkdir}/venv
-deps = -r{toxinidir}/requirements.txt
-       -r{toxinidir}/test-requirements.txt
 
-passenv =
-    http_proxy
-    https_proxy
-    no_proxy
-
-[testenv:pep8]
-commands = flake8 {posargs}
-
-[testenv:venv]
-commands =
-  python {toxinidir}/windlass.py {posargs}
-
-[testenv:build]
-commands = python {toxinidir}/windlass.py \
-    --directory {toxinidir}/ \
-    --build-only \
-    dev {posargs}
-
-[testenv:tests]
-commands = python setup.py testr --slowest --testr-args='{posargs}'
+class Test_E2E(testtools.TestCase):
+    def test_tags_in_registry(self):
+        response = get('http://127.0.0.1:5000/v2/zing/windlass/tags/list')
+        self.assertThat(response.status_code, Equals(200))
+        self.assertThat(response.json()['name'], Equals('zing/windlass'))

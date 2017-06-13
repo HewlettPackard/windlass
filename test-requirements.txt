@@ -15,3 +15,5 @@
 #
 
 hacking
+testtools
+testrepository
