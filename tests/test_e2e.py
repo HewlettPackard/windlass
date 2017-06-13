@@ -15,6 +15,7 @@
 #
 
 import docker
+from windlass.cipublish import get_commit
 import windlass.images
 from git import Repo
 import os
@@ -37,6 +38,7 @@ class FakeRegistry(testtools.TestCase):
             'registry:2',
             detach=True,
             ports={'5000/tcp': self.registry_port})
+        self.registry_url = "http://127.0.0.1:%d/" % self.registry_port
 
     @classmethod
     def tearDownClass(self):
@@ -111,3 +113,21 @@ class Test_E2E_FakeRepo(FakeRegistry):
                         Equals(open('tests/fakerepo/%scontext/image_content.'
                                     'txt' % imagename).read()),
                         '%s image build is not valid')
+
+
+class Test_CI_Publishing(FakeRegistry):
+
+    def test_ci_publish(self):
+        cmd = 'cipublish --docker-repo 127.0.0.1:%s dev'
+        os.system(cmd % self.registry_port)
+        response = get(self.registry_url + '/v2/zing/windlass/tags/list')
+        self.assertThat(response.status_code, Equals(200))
+        respjson = response.json()
+        self.assertThat(respjson['name'], Equals('zing/windlass'))
+        self.expectThat(respjson['tags'],
+                        Equals([get_commit('.')]),
+                        'Too many tags:' + ','.join(respjson['tags']))
+        catalog = get(self.registry_url + '/v2/_catalog').json()
+        self.expectThat(catalog['repositories'],
+                        Equals(['zing/windlass']),
+                        'Too many images:' + ','.join(catalog['repositories']))

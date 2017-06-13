@@ -30,14 +30,14 @@ def load_proxy():
     return {key: os.environ[key] for key in proxy_keys if key in os.environ}
 
 
-def push_image(name, imagename, auth_config=None):
+def push_image(name, imagename, auth_config=None, push_tag='latest'):
     docker = from_env(version='auto')
     logging.info('%s: Pushing as %s', name, imagename)
 
     # raises exception if imagename is missing
-    docker.images.get(imagename + ":latest")
+    docker.images.get(imagename + ":" + push_tag)
 
-    r = docker.images.push(imagename, "latest", auth_config=auth_config)
+    r = docker.images.push(imagename, push_tag, auth_config=auth_config)
     last_msgs = []
     for line in r.split('\n'):
         if line != '':
