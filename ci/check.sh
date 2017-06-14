@@ -18,8 +18,6 @@
 set -eu
 set -o pipefail
 
-# Pep8 checks
-tox -epep8
 
 # Build Windlass image
 tox -ebuild
@@ -32,7 +30,7 @@ docker run --rm -t -e http_proxy -e https_proxy \
        zing/windlass:latest --debug --directory ${PWD} \
        --repository 127.0.0.1:5000 dev
 
-tox -etests -- tests.test_e2e.\*
+tox -etests
 
 docker kill $REGISTRY_CONTAINER
 docker rm $REGISTRY_CONTAINER
