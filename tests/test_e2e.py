@@ -15,7 +15,7 @@
 #
 
 import docker
-import windlass
+import windlass.images
 from git import Repo
 import os
 from requests import get
@@ -60,7 +60,7 @@ class Test_E2E_SelfBuild(FakeRegistry):
             remove=True,
             volumes={'/var/run/docker.sock': {'bind': '/var/run/docker.sock'},
                      base: {'bind': base}},
-            environment=windlass.load_proxy(),
+            environment=windlass.images.load_proxy(),
             )
 
         response = get(
@@ -91,7 +91,7 @@ class Test_E2E_FakeRepo(FakeRegistry):
             remove=True,
             volumes={'/var/run/docker.sock': {'bind': '/var/run/docker.sock'},
                      self.repodir: {'bind': self.repodir}},
-            environment=windlass.load_proxy(),
+            environment=windlass.images.load_proxy(),
             )
         self.check_proper_image_build('partial')
         self.check_proper_image_build('full')

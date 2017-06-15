@@ -1,3 +1,19 @@
+#
+# (c) Copyright 2017 Hewlett Packard Enterprise Development LP
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License. You may obtain
+# a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+#
+
 FROM alpine:3.5
 
 RUN set -e \
@@ -8,16 +24,7 @@ RUN set -e \
         python3 \
     ;
 
-ENV PYTHON_DOCKER_VERSION 2.2.0
-ENV PYTHON_GITPYTHON_VERSION 2.1.3
-ENV PYTHON_PYYAML_VERSION 3.12
-ENV GIT_SSL_NO_VERIFY=1
-RUN set -e \
-    && pip3 install --no-cache-dir \
-        docker==${PYTHON_DOCKER_VERSION} \
-        gitpython==${PYTHON_GITPYTHON_VERSION} \
-        pyyaml==${PYTHON_PYYAML_VERSION} \
-    ;
+ENV GIT_SSL_NO_VERIFY=
 
 RUN set -e \
     && apk add --update --no-cache --virtual .download-deps \
@@ -32,8 +39,16 @@ RUN set -e \
     && helm init -c \
     ;
 
-ADD windlass.py /windlass.py
+# This needs to correspond to Version field in METADATA
+ENV GATHER_VERSION=0.1.0
+
+COPY dist/windlass-${GATHER_VERSION}-py3-none-any.whl /
+
+RUN set -e \
+    && pip3 install --no-cache-dir \
+       windlass-${GATHER_VERSION}-py3-none-any.whl \
+    ;
 
 VOLUME /var/run/docker.sock
 
-ENTRYPOINT ["/usr/bin/python3","/windlass.py"]
+ENTRYPOINT ["windlass"]
