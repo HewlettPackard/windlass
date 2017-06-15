@@ -14,13 +14,50 @@
 # under the License.
 #
 
+import docker
+import windlass
+import os
 from requests import get
+import test.support
 import testtools
 from testtools.matchers import Equals
 
 
 class Test_E2E(testtools.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self.registry_port = test.support.find_unused_port()
+        self.client = docker.from_env(version='auto')
+        self.registry = self.client.containers.run(
+            'registry:2',
+            detach=True,
+            ports={'5000/tcp': self.registry_port})
+
+    def tearDown(self):
+        super().tearDown()
+        self.registry.kill()
+        self.registry.remove()
+
     def test_tags_in_registry(self):
-        response = get('http://127.0.0.1:5000/v2/zing/windlass/tags/list')
+        base = os.path.dirname(os.path.dirname(__file__))
+        # This uses the zing/windlass:latest image build during the tox -ebuild
+        # step in ci/check.sh
+        # This aslo rebuilds the image, we should only do this once and use
+        # it to build and test other images.
+        self.client.containers.run(
+            'zing/windlass:latest',
+            '--debug --directory %s --repository 127.0.0.1:%d dev' % (
+                base, self.registry_port,
+                ),
+            remove=True,
+            volumes={'/var/run/docker.sock': {'bind': '/var/run/docker.sock'},
+                     base: {'bind': base}},
+            environment=windlass.load_proxy(),
+            )
+
+        response = get(
+            'http://127.0.0.1:%d/v2/zing/windlass/tags/list' % (
+                self.registry_port))
         self.assertThat(response.status_code, Equals(200))
         self.assertThat(response.json()['name'], Equals('zing/windlass'))
