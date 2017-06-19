@@ -29,7 +29,7 @@ class Test_Style(testtools.TestCase):
         try:
             oldout = sys.stdout
             sys.stdout = StringIO()
-            style_guide = engine.get_style_guide()
+            style_guide = engine.get_style_guide(exclude=['build'])
             report = style_guide.check_files('.')
             if report.total_errors > 0:
                 for line in sys.stdout.getvalue().split('\n'):
