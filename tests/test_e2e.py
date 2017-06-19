@@ -42,34 +42,14 @@ class FakeRegistry(testtools.TestCase):
 
     @classmethod
     def tearDownClass(self):
+        # Remove all associated with this test.
+        for img in self.client.images.list():
+            for tag in img.tags:
+                if tag.startswith('127.0.0.1:%d' % self.registry_port):
+                    self.client.images.remove(tag)
+
         self.registry.kill()
         self.registry.remove()
-
-
-class Test_E2E_SelfBuild(FakeRegistry):
-
-    def test_tags_in_registry(self):
-        base = os.path.dirname(os.path.dirname(__file__))
-        # This uses the zing/windlass:latest image build during the tox -ebuild
-        # step in ci/check.sh
-        # This aslo rebuilds the image, we should only do this once and use
-        # it to build and test other images.
-        self.client.containers.run(
-            'zing/windlass:latest',
-            '--debug --directory %s --repository 127.0.0.1:%d dev' % (
-                base, self.registry_port,
-                ),
-            remove=True,
-            volumes={'/var/run/docker.sock': {'bind': '/var/run/docker.sock'},
-                     base: {'bind': base}},
-            environment=windlass.images.load_proxy(),
-            )
-
-        response = get(
-            'http://127.0.0.1:%d/v2/zing/windlass/tags/list' % (
-                self.registry_port))
-        self.assertThat(response.status_code, Equals(200))
-        self.assertThat(response.json()['name'], Equals('zing/windlass'))
 
 
 class Test_E2E_FakeRepo(FakeRegistry):
@@ -113,6 +93,13 @@ class Test_E2E_FakeRepo(FakeRegistry):
                         Equals(open('tests/fakerepo/%scontext/image_content.'
                                     'txt' % imagename).read()),
                         '%s image build is not valid')
+
+        response = get(
+            'http://127.0.0.1:%d/v2/fakerepo%s/tags/list' % (
+                self.registry_port, imagename))
+        self.assertThat(response.status_code, Equals(200))
+        self.assertThat(
+            response.json()['name'], Equals('fakerepo%s' % imagename))
 
 
 class Test_CI_Publishing(FakeRegistry):
