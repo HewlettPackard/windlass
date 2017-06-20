@@ -186,7 +186,9 @@ def get_image(image_def, nocache, repository, repodir, pull=False):
             repopath = './' + repodir
         else:
             repopath = './%s' % guess_repo_name(image_def['repo'])
+        repopath = os.path.abspath(repopath)
         dockerfile = image_def.get('dockerfile', None)
+        logging.debug('Expecting repository at %s' % repopath)
         if os.path.exists(os.path.join(repopath, '.git')):
             im = build_image_from_local_repo(repopath, image_def['context'],
                                              image_def['name'],

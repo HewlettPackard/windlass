@@ -123,17 +123,20 @@ def main():
         parser.error(
             "--build-only and --push-only can't be specified at the same time")
 
+    directory = ns.directory if ns.directory[0] == '/' else \
+        os.path.abspath(ns.directory) + '/'
+
     # set additional defaults based on options parsed
     if not ns.charts_directory:
-        ns.charts_directory = os.path.join(ns.directory, 'charts')
+        ns.charts_directory = os.path.join(directory, 'charts')
 
-    parentdir, ns.repodir = os.path.split(ns.directory)
+    parentdir, ns.repodir = os.path.split(directory)
     os.chdir(parentdir)
     level = logging.DEBUG if ns.debug else logging.INFO
     logging.basicConfig(level=level,
                         format='%(asctime)s %(levelname)s %(message)s')
 
-    logging.info("Sources directory: '%s'", ns.directory)
+    logging.info("Sources directory: '%s'", directory)
     logging.info("Charts directory: '%s'", ns.charts_directory)
     ns.registry_ready = Event()
     ns.failure_occured = Event()
@@ -147,7 +150,7 @@ def main():
                            args=(ns,), name='wait_for_registry')
         waitproc.start()
 
-    images, charts = read_products(directory=ns.directory,
+    images, charts = read_products(directory=directory,
                                    products_to_parse=ns.products)
 
     for chart_def in charts:
