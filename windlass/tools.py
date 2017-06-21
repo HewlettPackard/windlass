@@ -19,3 +19,27 @@ def guess_repo_name(repourl):
         return repourl.split('/')[-1][:-4]
     else:
         return repourl.split('/')[-1]
+
+
+def split_image(image):
+    """Get the tag from a full image name.
+
+    127.0.0.1:5000/image:latest => 127.0.0.1:5000/image, latest
+    image:tag => image, tag
+    """
+    parts = image.split('/', 1)
+    if len(parts) == 1 or (
+            '.' not in parts[0] and
+            ':' not in parts[0]):
+        host, img = '', image
+    else:
+        host, img = parts
+
+    if ':' in img:
+        imagename, tag = img.rsplit(':', 1)
+    else:
+        imagename, tag = img, 'latest'
+
+    if host:
+        return host + "/" + imagename, tag
+    return imagename, tag

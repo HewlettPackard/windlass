@@ -17,6 +17,7 @@
 from docker.errors import ImageNotFound
 from docker import from_env
 from windlass.tools import guess_repo_name
+from windlass.tools import split_image
 from git import Repo
 import logging
 import os
@@ -30,12 +31,12 @@ def load_proxy():
     return {key: os.environ[key] for key in proxy_keys if key in os.environ}
 
 
-def push_image(name, imagename, auth_config=None, push_tag='latest'):
+def push_image(name, imagename, push_tag='latest', auth_config=None):
     docker = from_env(version='auto')
-    logging.info('%s: Pushing as %s', name, imagename)
+    logging.info('%s: Pushing as %s:%s', name, imagename, push_tag)
 
     # raises exception if imagename is missing
-    docker.images.get(imagename + ":" + push_tag)
+    docker.images.get(imagename + ':' + push_tag)
 
     r = docker.images.push(imagename, push_tag, auth_config=auth_config)
     last_msgs = []
@@ -146,22 +147,16 @@ def build_image_from_local_repo(repopath, imagepath, name, repository, tags=[],
     return image
 
 
-def pull_image(repopath, name, repository, tags=[]):
+def pull_image(remote, name, repository, tags=[]):
     docker = from_env(version='auto')
-    logging.info("%s: Pulling image from %s", name, repopath)
-    if ':' in repopath:
-        repo, tag = repopath.split(':')
-    else:
-        logging.info('%s: Warning image is not pinned, latest would be pulled',
-                     name)
-        repo, tag = repopath, 'latest'
-    docker.api.pull(repo, tag=tag)
-    image = docker.images.get(repopath)
-    docker.api.tag(image.id, repository + name, tag)
-    # it seems some code depends on latest tag existing
-    if not tag == 'latest':
-        docker.api.tag(image.id, repository + name, 'latest')
-    image = docker.images.get(':'.join([repository + name, tag]))
+    logging.info("%s: Pulling image from %s", name, remote)
+
+    imagename, tag = split_image(name)
+
+    docker.api.pull(remote)
+    docker.api.tag(remote, repository + imagename, tag)
+
+    image = docker.images.get(repository + name)
     return image
 
 
@@ -180,7 +175,7 @@ def get_image(image_def, nocache, repository, repodir, pull=False):
             return im
     except ImageNotFound:
         pass
-    tags = image_def.get('tags', [])
+
     if 'repo' in image_def:
         if image_def['repo'] == '.':
             repopath = './' + repodir
@@ -226,11 +221,11 @@ def process_image(image_def, ns):
                 ns.registry_ready.wait()
             try:
                 if ns.proxy_repository is not '':
-                    image_name = ns.proxy_repository + name
-                    docker.api.tag(ns.repository + name, image_name, "latest")
+                    image_name, tag = split_image(ns.proxy_repository + name)
+                    docker.api.tag(ns.repository + name, image_name, tag)
                 else:
-                    image_name = ns.repository + name
-                push_image(name, image_name)
+                    image_name, tag = split_image(ns.repository + name)
+                push_image(name, image_name, tag)
             finally:
                 if ns.proxy_repository is not '':
                     docker.api.remove_image(ns.proxy_repository + name)
