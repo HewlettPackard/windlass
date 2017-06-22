@@ -37,7 +37,9 @@ def main():
     parser = ArgumentParser('Publish new artifacts')
     parser.add_argument('--debug', action='store_true',
                         help='Enable debug logging')
-    parser.add_argument('--docker-repo', type=str, required=True,
+    parser.add_argument('--list', action='store_true',
+                        help='Only list images we will publish')
+    parser.add_argument('--docker-repo', type=str,
                         help='Docker registry name')
     parser.add_argument('--docker-user', type=str,
                         help='Username if required for docker registry')
@@ -48,6 +50,10 @@ def main():
     parser.add_argument('products', default=[], type=str, nargs='*',
                         help='List of products')
     ns = parser.parse_args()
+
+    if not ns.list and not ns.docker_repo:
+        parser.error('--list or --docker-repo must be set.')
+
     if ns.docker_user:
         auth_config = {'username': ns.docker_user,
                        'password': ns.docker_password}
@@ -56,6 +62,7 @@ def main():
 
     logging.basicConfig(level=logging.DEBUG if ns.debug else logging.INFO,
                         format='%(asctime)s %(levelname)s %(message)s')
+
     images, charts = read_products(directory=os.getcwd(),
                                    products_to_parse=ns.products)
 
@@ -63,6 +70,11 @@ def main():
     for image_def in images:
         imagename, tag = split_image(image_def['name'])
         push_tag = get_commit('.')
+
+        if ns.list:
+            print('%s:%s' % (imagename, push_tag))
+            continue
+
         fullname = ns.docker_repo + '/' + imagename
 
         logging.info('Publishing %s:%s to %s:%s' % (
