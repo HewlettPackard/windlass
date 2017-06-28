@@ -67,20 +67,29 @@ class Test_E2E_FakeRepo(FakeRegistry):
     def test_fake_repo(self):
         self.client.containers.run(
             'zing/windlass:latest',
-            '--debug --directory %s --repository 127.0.0.1:%d test' % (
-                self.repodir, self.registry_port,
+            '--debug --proxy-repository 127.0.0.1:%d %s/products/test.yml' % (
+                self.registry_port, self.repodir
                 ),
             remove=True,
             volumes={'/var/run/docker.sock': {'bind': '/var/run/docker.sock'},
                      self.repodir: {'bind': self.repodir}},
+            working_dir=self.repodir,
             environment=windlass.images.load_proxy(),
             )
         self.check_proper_image_build('partial')
         self.check_proper_image_build('full')
 
     def check_proper_image_build(self, imagename):
-        image = self.client.images.get('127.0.0.1:%s/fakerepo%s' %
-                                       (self.registry_port, imagename))
+        fullimagename = '127.0.0.1:%s/fakerepo%s' % (
+            self.registry_port, imagename)
+        try:
+            self.client.images.get(fullimagename)
+        except docker.errors.ImageNotFound:
+            pass
+        else:
+            self.fail("Image %s exists. It shouldn't" % fullimagename)
+
+        image = self.client.images.pull(fullimagename)
         _, tags = zip(*(t.split('/')[-1].split(':') for t in image.tags))
         self.expectThat(tags, Contains('latest'),
                         '%s image missing latest tag' % imagename)
@@ -105,7 +114,7 @@ class Test_E2E_FakeRepo(FakeRegistry):
 class Test_CI_Publishing(FakeRegistry):
 
     def test_ci_publish(self):
-        cmd = 'cipublish --docker-repo 127.0.0.1:%s dev'
+        cmd = 'cipublish --docker-repo 127.0.0.1:%s ./products/dev.yml'
         os.system(cmd % self.registry_port)
         response = get(self.registry_url + '/v2/zing/windlass/tags/list')
         self.assertThat(response.status_code, Equals(200))

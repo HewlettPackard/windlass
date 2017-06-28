@@ -22,7 +22,6 @@ from windlass.products import read_products
 from windlass.tools import split_image
 import git
 import logging
-import os
 
 
 def get_commit(path):
@@ -63,8 +62,7 @@ def main():
     logging.basicConfig(level=logging.DEBUG if ns.debug else logging.INFO,
                         format='%(asctime)s %(levelname)s %(message)s')
 
-    images, charts = read_products(directory=os.getcwd(),
-                                   products_to_parse=ns.products)
+    images, charts = read_products(products_to_parse=ns.products)
 
     docker = from_env(version='auto')
     for image_def in images:

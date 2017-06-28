@@ -15,30 +15,21 @@
 # under the License.
 #
 
-from glob import glob
-import logging
-import os
 import yaml
 
 
-def read_products(directory='.', products_to_parse=[]):
+def read_products(products_to_parse=[]):
     images = []
     charts = []
-    logging.info("looking for products under %s/products/*.yml", directory)
-    products = glob(os.path.join(directory, 'products', '*.yml'))
-    logging.debug("Found products: %s" % products)
-    for product_file in products:
-        product_name = os.path.splitext((os.path.basename(product_file)))[0]
-        if product_name not in products_to_parse:
-            logging.info("Skipping product %s", product_name)
-            continue
-        logging.info("Processing product %s", product_name)
+    for product_file in products_to_parse:
         with open(product_file, 'r') as f:
             product_def = yaml.load(f.read())
+
         if 'images' in product_def:
             for image_def in product_def['images']:
                 images.append(image_def)
         if 'charts' in product_def:
             for chart_def in product_def['charts']:
                 charts.append(chart_def)
+
     return images, charts

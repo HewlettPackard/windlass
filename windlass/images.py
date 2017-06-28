@@ -14,14 +14,11 @@
 # under the License.
 #
 
-from docker.errors import ImageNotFound
 from docker import from_env
-from windlass.tools import guess_repo_name
 from windlass.tools import split_image
 from git import Repo
 import logging
 import os
-from tempfile import TemporaryDirectory
 
 import yaml
 
@@ -72,13 +69,13 @@ def clean_tag(tag):
     return clean[:128]
 
 
-def build_verbosly(name, path, repository, nocache=False, dockerfile=None,
+def build_verbosly(name, path, nocache=False, dockerfile=None,
                    pull=False):
     docker = from_env(version='auto')
     bargs = load_proxy()
     logging.info("Building %s from path %s", name, path)
     stream = docker.api.build(path=path,
-                              tag=repository+name,
+                              tag=name,
                               nocache=nocache,
                               buildargs=bargs,
                               dockerfile=dockerfile,
@@ -100,110 +97,62 @@ def build_verbosly(name, path, repository, nocache=False, dockerfile=None,
         logging.error('Output from building %s:\n%s', name, ''.join(output))
         raise Exception("Failed to build {}".format(name))
     logging.info("Successfully built %s from path %s", name, path)
-    return docker.images.get(repository+name)
+    return docker.images.get(name)
 
 
-def build_image_from_remote_repo(
-        repourl, imagepath, name, repository, tags=[],
-        branch='master', nocache=False, dockerfile=None, pull=False):
-    logging.info('%s: Building image located in directory %s in repository %s',
-                 name, imagepath, repourl)
-    with TemporaryDirectory() as tempdir:
-        repo = Repo.clone_from(repourl, tempdir, branch=branch, depth=1,
-                               single_branch=True)
-        image = build_verbosly(name,
-                               os.path.join(tempdir, imagepath),
-                               repository,
-                               nocache=nocache,
-                               dockerfile=dockerfile,
-                               pull=pull)
-        image.tag(repository + name,
-                  clean_tag('ref_' + repo.active_branch.commit.hexsha))
-        image.tag(repository + name,
-                  clean_tag('branch_' + repo.active_branch.name))
-    return image
-
-
-def build_image_from_local_repo(repopath, imagepath, name, repository, tags=[],
+def build_image_from_local_repo(repopath, imagepath, name, tags=[],
                                 nocache=False, dockerfile=None, pull=False):
     logging.info('%s: Building image from local directory %s',
                  name, os.path.join(repopath, imagepath))
     repo = Repo(repopath)
-    image = build_verbosly(name, os.path.join(repopath, imagepath), repository,
+    image = build_verbosly(name, os.path.join(repopath, imagepath),
                            nocache=nocache, dockerfile=dockerfile)
     if repo.head.is_detached:
         commit = repo.head.commit.hexsha
     else:
         commit = repo.active_branch.commit.hexsha
-        image.tag(repository + name,
+        image.tag(name,
                   clean_tag('branch_' +
                             repo.active_branch.name.replace('/', '_')))
     if repo.is_dirty():
-        image.tag(repository + name,
+        image.tag(name,
                   clean_tag('last_ref_' + commit))
     else:
-        image.tag(repository + name, clean_tag('ref_' + commit))
+        image.tag(name, clean_tag('ref_' + commit))
 
     return image
 
 
-def pull_image(remote, name, repository, tags=[]):
+def pull_image(remote, name):
     docker = from_env(version='auto')
     logging.info("%s: Pulling image from %s", name, remote)
 
     imagename, tag = split_image(name)
 
     docker.api.pull(remote)
-    docker.api.tag(remote, repository + imagename, tag)
+    docker.api.tag(remote, imagename, tag)
 
-    image = docker.images.get(repository + name)
+    image = docker.images.get(name)
     return image
 
 
-def get_image(image_def, nocache, repository, repodir, pull=False):
-    docker = from_env(version='auto')
-    try:
-        im = docker.images.get(image_def['name'])
-        repos, tags = zip(*(t.split(':') for t in im.tags))
-
-        if 'nowindlass' in tags:
-            logging.info(
-                '%s: Image will not be pulled or build as it has nowindlass '
-                'tag', image_def['name'])
-            if not repository + image_def['name'] in repos:
-                docker.api.tag(im.id, repository + image_def['name'], 'latest')
-            return im
-    except ImageNotFound:
-        pass
-
-    if 'repo' in image_def:
-        if image_def['repo'] == '.':
-            repopath = './' + repodir
-        else:
-            repopath = './%s' % guess_repo_name(image_def['repo'])
-        repopath = os.path.abspath(repopath)
+def build_image(image_def, nocache=False, pull=False):
+    if 'remote' in image_def:
+        im = pull_image(image_def['remote'], image_def['name'])
+    else:
+        # TODO(kerrin) - repo should be relative the defining yaml file
+        # and not the current working directory of the program. This change
+        # is likely to break this.
+        repopath = os.path.abspath('.')
         dockerfile = image_def.get('dockerfile', None)
         logging.debug('Expecting repository at %s' % repopath)
-        if os.path.exists(os.path.join(repopath, '.git')):
-            im = build_image_from_local_repo(repopath, image_def['context'],
-                                             image_def['name'],
-                                             repository=repository,
-                                             nocache=nocache,
-                                             dockerfile=dockerfile,
-                                             pull=pull)
-        else:
-            im = build_image_from_remote_repo(image_def['repo'],
-                                              image_def['context'],
-                                              image_def['name'],
-                                              repository=repository,
-                                              branch=image_def.get('branch',
-                                                                   'master'),
-                                              nocache=nocache,
-                                              dockerfile=dockerfile,
-                                              pull=pull)
+        im = build_image_from_local_repo(repopath,
+                                         image_def['context'],
+                                         image_def['name'],
+                                         nocache=nocache,
+                                         dockerfile=dockerfile,
+                                         pull=pull)
         logging.info('Get image %s completed', image_def['name'])
-    else:
-        im = pull_image(image_def['remote'], image_def['name'], repository)
     return im
 
 
@@ -213,8 +162,9 @@ def process_image(image_def, ns):
     name = image_def['name']
     try:
         if not ns.push_only:
-            get_image(image_def, ns.no_docker_cache, ns.repository, ns.repodir,
-                      ns.docker_pull)
+            build_image(image_def,
+                        ns.no_docker_cache,
+                        ns.docker_pull)
         if not ns.build_only:
             if not ns.registry_ready.is_set():
                 logging.info('%s: waiting for registry', name)
@@ -222,9 +172,9 @@ def process_image(image_def, ns):
             try:
                 if ns.proxy_repository is not '':
                     image_name, tag = split_image(ns.proxy_repository + name)
-                    docker.api.tag(ns.repository + name, image_name, tag)
+                    docker.api.tag(name, image_name, tag)
                 else:
-                    image_name, tag = split_image(ns.repository + name)
+                    image_name, tag = split_image(name)
                 push_image(name, image_name, tag)
             finally:
                 if ns.proxy_repository is not '':

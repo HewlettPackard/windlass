@@ -26,8 +26,6 @@ import datetime
 import logging
 from multiprocessing import Event
 from multiprocessing import Process
-import os
-import os.path
 import time
 
 from docker.errors import APIError
@@ -37,7 +35,7 @@ from docker import from_env
 
 def wait_for_registry(ns, wait=600):
     docker = from_env(version='auto')
-    registry = ns.proxy_repository or ns.repository
+    registry = ns.proxy_repository
     timeout = datetime.datetime.now() + datetime.timedelta(seconds=wait)
     while True:
         if datetime.datetime.now() > timeout:
@@ -93,8 +91,6 @@ def main():
                         help='Build images but does not publish them')
     parser.add_argument('--push-only', action='store_true',
                         help='Publish images only')
-    parser.add_argument('--repository', type=str, default='',
-                        help='Docker registry where images can be published')
     parser.add_argument('--proxy-repository', type=str, default='',
                         help='Alternative address to use temporarily when it '
                              'is not possible to push directly to the '
@@ -104,44 +100,27 @@ def main():
                         help='Use no-cache option in docker build')
     parser.add_argument('--docker-pull', action='store_true',
                         help='Use pull option in docker build')
-    parser.add_argument('--directory', type=str,
-                        default=os.path.abspath(os.path.curdir),
-                        help='Directory to run windlass under, will change to '
-                             'this path before processing any files '
-                             '(default: %(default)s)')
-    parser.add_argument('--charts-directory', type=str,
+    parser.add_argument('--charts-directory', type=str, default='charts',
                         help='Path to write charts out to for processing '
                              '(default: <directory>/charts).')
     ns = parser.parse_args()
 
     # do any complex argument error condition checking
-    if not (ns.repository or ns.proxy_repository) and not ns.build_only:
-        parser.error("--repository (or --proxy-repository) required "
+    if not ns.proxy_repository and not ns.build_only:
+        parser.error("--proxy-repository required "
                      "unless --build-only specified")
 
     if ns.build_only and ns.push_only:
         parser.error(
             "--build-only and --push-only can't be specified at the same time")
 
-    directory = ns.directory if ns.directory[0] == '/' else \
-        os.path.abspath(ns.directory) + '/'
-
-    # set additional defaults based on options parsed
-    if not ns.charts_directory:
-        ns.charts_directory = os.path.join(directory, 'charts')
-
-    parentdir, ns.repodir = os.path.split(directory)
-    os.chdir(parentdir)
     level = logging.DEBUG if ns.debug else logging.INFO
     logging.basicConfig(level=level,
                         format='%(asctime)s %(levelname)s %(message)s')
 
-    logging.info("Sources directory: '%s'", directory)
-    logging.info("Charts directory: '%s'", ns.charts_directory)
     ns.registry_ready = Event()
     ns.failure_occured = Event()
-    if ns.repository and not ns.repository.endswith('/'):
-        ns.repository = ns.repository + '/'
+
     if ns.proxy_repository and not ns.proxy_repository.endswith('/'):
         ns.proxy_repository = ns.proxy_repository + '/'
 
@@ -150,12 +129,12 @@ def main():
                            args=(ns,), name='wait_for_registry')
         waitproc.start()
 
-    images, charts = read_products(directory=directory,
-                                   products_to_parse=ns.products)
+    images, charts = read_products(products_to_parse=ns.products)
+
+    procs = []
 
     for chart_def in charts:
         process_chart(chart_def, ns)
-    procs = []
 
     d = defaultdict(list)
     for image_def in images:
