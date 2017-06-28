@@ -17,19 +17,31 @@
 
 import yaml
 
+import windlass.images
 
-def read_products(products_to_parse=[]):
-    images = []
-    charts = []
-    for product_file in products_to_parse:
-        with open(product_file, 'r') as f:
-            product_def = yaml.load(f.read())
 
-        if 'images' in product_def:
-            for image_def in product_def['images']:
-                images.append(image_def)
-        if 'charts' in product_def:
-            for chart_def in product_def['charts']:
-                charts.append(chart_def)
+class Products(object):
 
-    return images, charts
+    def __init__(self, products_to_parse=[]):
+        self.load(products_to_parse)
+
+    def load(self, products_to_parse=[]):
+        self.images = []
+        self.charts = []
+        self.data = {}
+
+        for product_file in products_to_parse:
+            with open(product_file, 'r') as f:
+                product_def = yaml.load(f.read())
+
+            # TODO(kerrin) this is not a deep merge, and is pretty poor.
+            # Will lose data on you.
+            self.data.update(product_def)
+
+            if 'images' in product_def:
+                for image_def in product_def['images']:
+                    self.images.append(windlass.images.Image(image_def))
+
+            if 'charts' in product_def:
+                for chart_def in product_def['charts']:
+                    self.charts.append(chart_def)

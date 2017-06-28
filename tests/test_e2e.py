@@ -67,7 +67,8 @@ class Test_E2E_FakeRepo(FakeRegistry):
     def test_fake_repo(self):
         self.client.containers.run(
             'zing/windlass:latest',
-            '--debug --proxy-repository 127.0.0.1:%d %s/products/test.yml' % (
+            ('--debug --docker-image-registry 127.0.0.1:%d '
+             '%s/products/test.yml') % (
                 self.registry_port, self.repodir
                 ),
             remove=True,

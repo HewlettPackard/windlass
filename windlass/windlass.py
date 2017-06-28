@@ -15,16 +15,14 @@
 # under the License.
 #
 
+import windlass.api
 from windlass.charts import process_chart
-from windlass.images import process_image
-from windlass.products import read_products
+from windlass.products import Products
 
 
 from argparse import ArgumentParser
-from collections import defaultdict
 import datetime
 import logging
-from multiprocessing import Event
 from multiprocessing import Process
 import time
 
@@ -33,20 +31,19 @@ from docker.errors import NotFound
 from docker import from_env
 
 
-def wait_for_registry(ns, wait=600):
+def wait_for_registry(ns, docker_image_registry, wait=600):
     docker = from_env(version='auto')
-    registry = ns.proxy_repository
     timeout = datetime.datetime.now() + datetime.timedelta(seconds=wait)
     while True:
         if datetime.datetime.now() > timeout:
             ns.failure_occured.set()
             logging.exception(
                 'wait_for_registry %s timeout after %d seconds' % (
-                    registry, wait))
+                    docker_image_registry, wait))
             return
 
         try:
-            result = docker.api.pull(registry + 'noimage')
+            result = docker.api.pull(docker_image_registry + 'noimage')
             # result is a simple string of the json response, check if either
             # the requested image was found, or explicitly "not found" to
             # determine if the docker deamon can reach the desired registry
@@ -69,87 +66,76 @@ def wait_for_registry(ns, wait=600):
                 return
 
 
-def wait_for_procs(procs, ns):
-    while True:
-        if ns.failure_occured.wait(0.1):
-            for p in procs:
-                p.terminate()
-            logging.info('Killed all processes')
-            return False
-
-        if len([p for p in procs if p.is_alive()]) == 0:
-            return True
-
-
 def main():
     parser = ArgumentParser(description='Windlass products from other repos')
     parser.add_argument('--debug', action='store_true',
                         help='Enable debug logging')
     parser.add_argument('products', default=[], type=str, nargs='*',
                         help='List of products.')
+
     parser.add_argument('--build-only', action='store_true',
                         help='Build images but does not publish them')
     parser.add_argument('--push-only', action='store_true',
                         help='Publish images only')
-    parser.add_argument('--proxy-repository', type=str, default='',
-                        help='Alternative address to use temporarily when it '
-                             'is not possible to push directly to the '
-                             'repository but still useful to use the name '
-                             'for images.')
+
+    parser.add_argument('--version', type=str,
+                        help='Specify version of artifacts')
+
     parser.add_argument('--no-docker-cache', action='store_true',
                         help='Use no-cache option in docker build')
     parser.add_argument('--docker-pull', action='store_true',
                         help='Use pull option in docker build')
+
+    parser.add_argument('--docker-image-registry', type=str,
+                        default='registry.hub.docker.com',
+                        help='')
+
     parser.add_argument('--charts-directory', type=str, default='charts',
                         help='Path to write charts out to for processing '
                              '(default: <directory>/charts).')
     ns = parser.parse_args()
 
     # do any complex argument error condition checking
-    if not ns.proxy_repository and not ns.build_only:
-        parser.error("--proxy-repository required "
-                     "unless --build-only specified")
+    if not ns.docker_image_registry and not ns.build_only:
+        parser.error(
+            '--artifact-image_registry required unless --build-only specified')
 
     if ns.build_only and ns.push_only:
         parser.error(
             "--build-only and --push-only can't be specified at the same time")
 
-    level = logging.DEBUG if ns.debug else logging.INFO
-    logging.basicConfig(level=level,
-                        format='%(asctime)s %(levelname)s %(message)s')
+    if ns.docker_image_registry and \
+       not ns.docker_image_registry.endswith('/'):
+        ns.docker_image_registry = ns.docker_image_registry + '/'
 
-    ns.registry_ready = Event()
-    ns.failure_occured = Event()
+    products = Products(products_to_parse=ns.products)
+    images, charts = products.images, products.charts
 
-    if ns.proxy_repository and not ns.proxy_repository.endswith('/'):
-        ns.proxy_repository = ns.proxy_repository + '/'
+    g = windlass.api.Windlass(images)
+    g.setupLogging(ns.debug)
 
     if not ns.build_only:
         waitproc = Process(target=wait_for_registry,
-                           args=(ns,), name='wait_for_registry')
+                           args=(g, ns.docker_image_registry),
+                           name='wait_for_registry')
         waitproc.start()
-
-    images, charts = read_products(products_to_parse=ns.products)
-
-    procs = []
 
     for chart_def in charts:
         process_chart(chart_def, ns)
 
-    d = defaultdict(list)
-    for image_def in images:
-        k = image_def.get('priority', 0)
-        d[k].append(image_def)
-    failed = False
-    for i in reversed(sorted(d.keys())):
-        for image_def in d[i]:
-            p = Process(target=process_image,
-                        args=(image_def, ns),
-                        name=image_def['name'])
-            p.start()
-            procs.append(p)
-        if not wait_for_procs(procs, ns):
-            failed = True
+    def process(artifact, version=None, **kwargs):
+        if not ns.push_only:
+            if version:
+                artifact.download(**kwargs)
+            else:
+                artifact.build()
+
+        if not ns.build_only:
+            artifact.upload(**kwargs)
+
+    failed = g.run(process,
+                   version=ns.version,
+                   docker_image_registry=ns.docker_image_registry)
 
     if failed:
         logging.error('Failed to windlass: %s', ','.join(ns.products))

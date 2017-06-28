@@ -18,7 +18,7 @@
 from argparse import ArgumentParser
 from docker import from_env
 from windlass.images import push_image
-from windlass.products import read_products
+from windlass.products import Products
 from windlass.tools import split_image
 import git
 import logging
@@ -62,11 +62,11 @@ def main():
     logging.basicConfig(level=logging.DEBUG if ns.debug else logging.INFO,
                         format='%(asctime)s %(levelname)s %(message)s')
 
-    images, charts = read_products(products_to_parse=ns.products)
+    products = Products(products_to_parse=ns.products)
 
     docker = from_env(version='auto')
-    for image_def in images:
-        imagename, tag = split_image(image_def['name'])
+    for image_def in products.images:
+        imagename, tag = split_image(image_def.name)
         push_tag = get_commit('.')
 
         if ns.list:
@@ -78,9 +78,9 @@ def main():
         logging.info('Publishing %s:%s to %s:%s' % (
             imagename, tag, fullname, push_tag))
 
-        docker.api.tag(image_def['name'], fullname, push_tag)
+        docker.api.tag(image_def.name, fullname, push_tag)
 
-        push_image(image_def['name'],
+        push_image(image_def.name,
                    fullname,
                    push_tag,
                    auth_config=auth_config)

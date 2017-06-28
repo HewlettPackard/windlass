@@ -15,6 +15,7 @@
 #
 
 from docker import from_env
+import windlass.api
 from windlass.tools import split_image
 from git import Repo
 import logging
@@ -156,30 +157,54 @@ def build_image(image_def, nocache=False, pull=False):
     return im
 
 
-def process_image(image_def, ns):
+class Image(windlass.api.Artifact):
 
-    docker = from_env(version='auto')
-    name = image_def['name']
-    try:
-        if not ns.push_only:
-            build_image(image_def,
-                        ns.no_docker_cache,
-                        ns.docker_pull)
-        if not ns.build_only:
-            if not ns.registry_ready.is_set():
-                logging.info('%s: waiting for registry', name)
-                ns.registry_ready.wait()
-            try:
-                if ns.proxy_repository is not '':
-                    image_name, tag = split_image(ns.proxy_repository + name)
-                    docker.api.tag(name, image_name, tag)
-                else:
-                    image_name, tag = split_image(name)
-                push_image(name, image_name, tag)
-            finally:
-                if ns.proxy_repository is not '':
-                    docker.api.remove_image(ns.proxy_repository + name)
-            logging.info('%s: Successfully pushed', name)
-    except Exception:
-        logging.exception('Processing image %s failed with exception', name)
-        ns.failure_occured.set()
+    def url(self, version=None, docker_image_registry=None):
+        image_name, devtag = split_image(self.name)
+        if version is None:
+            version = devtag
+
+        if docker_image_registry:
+            return '%s/%s:%s' % (
+                docker_image_registry.rstrip('/'), image_name, version)
+        return '%s:%s' % (image_name, version)
+
+    def build(self):
+        # How to pass in no-docker-cache and docker-pull arguments.
+        build_image(self.data)
+
+    def download(self, version, docker_image_registry):
+        docker = from_env(version='auto')
+        image_name, devtag = split_image(self.name)
+
+        logging.info('Pinning image: %s to pin: %s' % (
+            self.name, version))
+        remoteimage = '%s/%s:%s' % (
+            docker_image_registry, image_name, version)
+        # Pull the image down and tag with developer name
+        pull_image(remoteimage, self.name)
+
+        docker.api.tag(remoteimage, image_name, version)
+
+    def upload(self, version=None, docker_image_registry=None,
+               docker_user=None, docker_password=None):
+        if docker_user:
+            auth_config = {
+                'username': docker_user,
+                'password': docker_password}
+        else:
+            auth_config = None
+
+        docker = from_env(version='auto')
+
+        fullname = self.url(version, docker_image_registry)
+        image_name, tag = split_image(fullname)
+        try:
+            if docker_image_registry:
+                docker.api.tag(self.name, image_name, tag)
+            push_image(self.name, image_name, tag, auth_config=auth_config)
+        finally:
+            if docker_image_registry:
+                docker.api.remove_image(fullname)
+
+        logging.info('%s: Successfully pushed', self.name)
