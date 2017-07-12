@@ -20,6 +20,7 @@ import windlass.api
 
 from argparse import ArgumentParser
 import logging
+import os
 
 
 def main():
@@ -35,7 +36,7 @@ def main():
                         help='Publish images only')
 
     parser.add_argument('--version', type=str,
-                        help='Specify version of artifacts')
+                        help='Specify version of artifacts.')
 
     parser.add_argument('--no-docker-cache', action='store_true',
                         help='Use no-cache option in docker build')
@@ -45,6 +46,10 @@ def main():
     parser.add_argument('--docker-image-registry', type=str,
                         default='registry.hub.docker.com',
                         help='')
+
+    parser.add_argument(
+        '--charts-url', type=str,
+        help='URL to publish charts to.')
 
     ns = parser.parse_args()
 
@@ -70,9 +75,15 @@ def main():
             # TODO(kerrin) Should version be required?
             artifact.upload(version, **kwargs)
 
+    docker_user = os.environ.get('DOCKER_USER', None)
+    docker_password = os.environ.get('DOCKER_TOKEN', None)
+
     failed = g.run(process,
                    version=ns.version,
-                   docker_image_registry=ns.docker_image_registry)
+                   docker_image_registry=ns.docker_image_registry,
+                   charts_url=ns.charts_url,
+                   docker_user=docker_user,
+                   docker_password=docker_password)
 
     if failed:
         logging.error('Failed to windlass: %s', ','.join(ns.products))

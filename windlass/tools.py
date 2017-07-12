@@ -14,13 +14,6 @@
 # under the License.
 
 
-def guess_repo_name(repourl):
-    if repourl.endswith('.git'):
-        return repourl.split('/')[-1][:-4]
-    else:
-        return repourl.split('/')[-1]
-
-
 def split_image(image):
     """Get the tag from a full image name.
 

@@ -38,6 +38,8 @@ class Artifact(object):
     Contains methods to control how to manage artifacts of a
     particular type.
 
+    This includes building, publishing and downloading artifacts.
+
     Attributes:
 
     data - provides a dictionary of data set by the user to
@@ -63,12 +65,24 @@ class Artifact(object):
         raise NotImplementedError('url not implemented')
 
     def build(self):
+        """Build the artifact
+
+        This builds the artifact for use by a developer
+        """
         raise NotImplementedError('build not implemented')
 
     def download(self, version, **kwargs):
+        """Download the versioned artifact from central registry
+
+        This downloads the versioned artifact and if it can, it
+        will rename this version to the local development version
+        so developers can get going quickly with the latest
+        blessed version in there workstation.
+        """
         raise NotImplementedError('download not implemented')
 
     def upload(self, version, **kwargs):
+        """Upload chart to the artifact server"""
         raise NotImplementedError('upload not implemented')
 
 

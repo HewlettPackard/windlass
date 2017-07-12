@@ -184,7 +184,7 @@ class Image(windlass.api.Artifact):
                                         pull=True)
             logging.info('Get image %s completed', image_def['name'])
 
-    def download(self, version, docker_image_registry):
+    def download(self, version, docker_image_registry, **kwargs):
         docker = from_env(version='auto')
         image_name, devtag = split_image(self.name)
 
@@ -198,7 +198,8 @@ class Image(windlass.api.Artifact):
         docker.api.tag(remoteimage, image_name, version)
 
     def upload(self, version=None, docker_image_registry=None,
-               docker_user=None, docker_password=None):
+               docker_user=None, docker_password=None,
+               **kwargs):
         if docker_user:
             auth_config = {
                 'username': docker_user,

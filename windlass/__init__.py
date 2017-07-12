@@ -15,4 +15,5 @@
 #
 
 # register types
+import windlass.charts  # noqa
 import windlass.images  # noqa
