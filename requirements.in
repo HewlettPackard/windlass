@@ -14,7 +14,7 @@
 # under the License.
 #
 
-hacking
-testtools
-testrepository
-pip-tools
+docker
+gitpython
+pyyaml
+ruamel.yaml
