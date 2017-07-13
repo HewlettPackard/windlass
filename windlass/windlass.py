@@ -16,7 +16,6 @@
 #
 
 import windlass.api
-from windlass.charts import process_chart
 from windlass.products import Products
 
 
@@ -48,9 +47,6 @@ def main():
                         default='registry.hub.docker.com',
                         help='')
 
-    parser.add_argument('--charts-directory', type=str, default='charts',
-                        help='Path to write charts out to for processing '
-                             '(default: <directory>/charts).')
     ns = parser.parse_args()
 
     # do any complex argument error condition checking
@@ -62,14 +58,10 @@ def main():
         parser.error(
             "--build-only and --push-only can't be specified at the same time")
 
-    products = Products(products_to_parse=ns.products)
-    images, charts = products.images, products.charts
+    artifacts = Products(products_to_parse=ns.products)
 
-    g = windlass.api.Windlass(images)
+    g = windlass.api.Windlass(artifacts)
     g.setupLogging(ns.debug)
-
-    for chart_def in charts:
-        process_chart(chart_def, ns)
 
     def process(artifact, version=None, **kwargs):
         if not ns.push_only:

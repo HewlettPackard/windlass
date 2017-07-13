@@ -15,22 +15,31 @@
 # under the License.
 #
 
-import yaml
-
 import windlass.images
+import logging
+import os.path
+import yaml
 
 
 class Products(object):
 
     def __init__(self, products_to_parse=[]):
+        self.items = []
+        self.data = {}
         self.load(products_to_parse)
 
-    def load(self, products_to_parse=[]):
-        self.images = []
-        self.charts = []
-        self.data = {}
+    def __iter__(self):
+        for item in self.items:
+            yield item
 
+    def load(self, products_to_parse=[]):
         for product_file in products_to_parse:
+            if not os.path.exists(product_file):
+                logging.debug(
+                    'Products file %s does not exist, skipping' % (
+                        product_file))
+                continue
+
             with open(product_file, 'r') as f:
                 product_def = yaml.load(f.read())
 
@@ -40,8 +49,8 @@ class Products(object):
 
             if 'images' in product_def:
                 for image_def in product_def['images']:
-                    self.images.append(windlass.images.Image(image_def))
+                    self.items.append(windlass.images.Image(image_def))
 
-            if 'charts' in product_def:
-                for chart_def in product_def['charts']:
-                    self.charts.append(chart_def)
+#            if 'charts' in product_def:
+#                for chart_def in product_def['charts']:
+#                    self.charts.append(windlass.charts.Chart(chart_def))
