@@ -185,6 +185,9 @@ class Image(windlass.api.Artifact):
             logging.info('Get image %s completed', image_def['name'])
 
     def download(self, version, docker_image_registry, **kwargs):
+        if version is None:
+            raise Exception('Must specify version of image to download.')
+
         docker = from_env(version='auto')
         image_name, devtag = split_image(self.name)
 

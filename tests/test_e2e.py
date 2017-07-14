@@ -15,6 +15,7 @@
 #
 
 import docker
+import windlass.api
 import windlass.images
 from git import Repo
 import os
@@ -63,10 +64,10 @@ class Test_E2E_FakeRepo(FakeRegistry):
         self.repo.git.add('-A')
         self.commitid = self.repo.index.commit('Commit 1').hexsha
 
-    def test_fake_repo(self):
+    def test_fake_repo_build_and_push(self):
         self.client.containers.run(
             'zing/windlass:latest',
-            ('--debug --docker-image-registry 127.0.0.1:%d '
+            ('--debug --push-docker-registry 127.0.0.1:%d '
              '%s/products/test.yml') % (
                 self.registry_port, self.repodir
                 ),
@@ -110,3 +111,31 @@ class Test_E2E_FakeRepo(FakeRegistry):
         self.assertThat(response.status_code, Equals(200))
         self.assertThat(
             response.json()['name'], Equals('fakerepo%s' % imagename))
+
+    def test_download(self):
+        # pull alpine:3.5
+        test_image_name = '127.0.0.1:%d/testing/download:12345' % (
+            self.registry_port)
+        self.client.images.pull('alpine:3.5')
+        self.client.api.tag('alpine:3.5', test_image_name)
+        self.client.images.push(test_image_name)
+        self.client.api.remove_image(test_image_name)
+
+        self.client.containers.run(
+            'zing/windlass:latest',
+            ('--debug --download-docker-registry 127.0.0.1:%d '
+             '--download --no-push --version 12345 '
+             '%s/products/test-download.yaml') % (
+                 self.registry_port, self.repodir),
+            remove=True,
+            volumes={'/var/run/docker.sock': {'bind': '/var/run/docker.sock'},
+                     self.repodir: {'bind': self.repodir}},
+            working_dir=self.repodir,
+            environment=windlass.images.load_proxy(),
+            )
+
+        self.client.images.get('testing/download:12345')
+        self.client.images.get('testing/download:latest')
+
+        self.client.api.remove_image('testing/download:12345')
+        self.client.api.remove_image('testing/download:latest')

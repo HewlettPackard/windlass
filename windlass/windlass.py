@@ -33,37 +33,47 @@ def main():
     parser.add_argument('products', default=[], type=str, nargs='*',
                         help='List of products.')
 
-    parser.add_argument('--build-only', action='store_true',
-                        help='Build images but does not publish them')
-    parser.add_argument('--push-only', action='store_true',
-                        help='Publish images only')
+    # Download or build
+    # - --build-only => build development artifacts
+    # - --download   => download version specific artifacts
+    #               specified on cli or in pins. Version must
+    #               be specified.
+    # Default is to build.
+    #
+    # Push
+    # - publish artifacts to specific locations
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--download', action='store_true',
+                       help='Download versioned artifacts. This implies '
+                       'no building')
+    group.add_argument('--build-only', action='store_true',
+                       help='Build images but does not publish them')
+    group.add_argument('--push-only', action='store_true',
+                       help='Publish images only')
+
+    parser.add_argument('--no-push', action='store_true',
+                        help='Under no circumstances try and push '
+                        'artifacts upstream.')
+
+    download_group = parser.add_argument_group('Download options')
+    download_group.add_argument(
+        '--download-docker-registry',
+        default='registry.hub.docker.com',
+        help='Registry of images.')
+    download_group.add_argument(
+        '--download-charts-url',
+        help='Helm repositories.')
+
+    push_group = parser.add_argument_group('Push options')
+    push_group.add_argument('--push-docker-registry',
+                            help='Registry to push images.')
+    push_group.add_argument('--push-charts-url',
+                            help='Helm repositories.')
 
     parser.add_argument('--version', type=str,
                         help='Specify version of artifacts.')
 
-    parser.add_argument('--no-docker-cache', action='store_true',
-                        help='Use no-cache option in docker build')
-    parser.add_argument('--docker-pull', action='store_true',
-                        help='Use pull option in docker build')
-
-    parser.add_argument('--docker-image-registry', type=str,
-                        default='registry.hub.docker.com',
-                        help='')
-
-    parser.add_argument(
-        '--charts-url', type=str,
-        help='URL to publish charts to.')
-
     ns = parser.parse_args()
-
-    # do any complex argument error condition checking
-    if not ns.docker_image_registry and not ns.build_only:
-        parser.error(
-            '--artifact-image_registry required unless --build-only specified')
-
-    if ns.build_only and ns.push_only:
-        parser.error(
-            "--build-only and --push-only can't be specified at the same time")
 
     windlass.api.setupLogging(ns.debug)
 
@@ -72,11 +82,21 @@ def main():
     def process(artifact, version=None, **kwargs):
         # Optimize building and pushing to registry in one call
         if not ns.push_only:
-            artifact.build()
+            if ns.download:
+                artifact.download(
+                    ns.version,
+                    docker_image_registry=ns.download_docker_registry,
+                    charts_url=ns.download_charts_url,
+                    **kwargs)
+            else:
+                artifact.build()
 
-        if not ns.build_only:
-            # TODO(kerrin) Should version be required?
-            artifact.upload(version, **kwargs)
+        if not ns.no_push:
+            if not ns.build_only:
+                artifact.upload(
+                    docker_image_registry=ns.push_docker_registry,
+                    charts_url=ns.push_charts_url,
+                    **kwargs)
 
     docker_user = os.environ.get('DOCKER_USER', None)
     docker_password = os.environ.get('DOCKER_TOKEN', None)
@@ -84,8 +104,6 @@ def main():
     failed = g.run(process,
                    parallel=not ns.no_parallel,
                    version=ns.version,
-                   docker_image_registry=ns.docker_image_registry,
-                   charts_url=ns.charts_url,
                    docker_user=docker_user,
                    docker_password=docker_password)
 

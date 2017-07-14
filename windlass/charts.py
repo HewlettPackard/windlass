@@ -65,6 +65,9 @@ class Chart(windlass.api.Artifact):
             raise Exception('Failed to build chart: %s' % self.name)
 
     def download(self, version, charts_url, **kwargs):
+        if version is None:
+            raise Exception('Must specify version of chart to download.')
+
         # Download
         if not charts_url:
             raise Exception(
@@ -87,10 +90,16 @@ class Chart(windlass.api.Artifact):
 
         # TODO(kerrin) post publishing expects the local version
         # to be present so we need to save that.
-        local_version = self.get_local_version()
-        local_chart_name = self.get_chart_name(local_version)
-        with open(local_chart_name, 'wb') as fp:
-            fp.write(resp.content)
+        try:
+            local_version = self.get_local_version()
+        except FileNotFoundError:
+            # If the local version if not present then ignore
+            # saving this version
+            pass
+        else:
+            local_chart_name = self.get_chart_name(local_version)
+            with open(local_chart_name, 'wb') as fp:
+                fp.write(resp.content)
 
     def package_chart(self, local_version, version=None, **kwargs):
         '''Package chart
