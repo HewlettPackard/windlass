@@ -58,11 +58,6 @@ class Windlass(object):
         # This is only used by windlass.py and should be removed?
         self.registry_ready = multiprocessing.Event()
 
-    def setupLogging(self, debug=False):
-        level = logging.DEBUG if debug else logging.INFO
-        logging.basicConfig(
-            level=level, format='%(asctime)s %(levelname)s %(message)s')
-
     def wait_for_procs(self):
         while True:
             if self.failure_occured.wait(0.1):
@@ -123,3 +118,9 @@ class Windlass(object):
 
     def upload(self, version, *args, **kwargs):
         self.run(lambda artifact: artifact.upload(version, *args, **kwargs))
+
+
+def setupLogging(debug=False):
+    level = logging.DEBUG if debug else logging.INFO
+    logging.basicConfig(
+        level=level, format='%(asctime)s %(levelname)s %(message)s')

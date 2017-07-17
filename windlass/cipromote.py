@@ -16,6 +16,7 @@
 #
 
 from argparse import ArgumentParser
+import windlass.api
 import logging
 import requests
 import ruamel.yaml
@@ -47,8 +48,9 @@ def main():
     ns = parser.parse_args()
     art_url = ns.artifactory if ns.artifactory[-1] == '/' \
         else ns.artifactory + '/'
-    logging.basicConfig(level=logging.DEBUG if ns.debug else logging.INFO,
-                        format='%(asctime)s %(levelname)s %(message)s')
+
+    windlass.api.setupLogging(ns.debug)
+
     auth = (ns.docker_user, ns.docker_password) if ns.docker_user else None
     data = ruamel.yaml.load(open(ns.manifest_file),
                             Loader=ruamel.yaml.RoundTripLoader)

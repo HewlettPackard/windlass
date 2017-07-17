@@ -58,10 +58,11 @@ def main():
         parser.error(
             "--build-only and --push-only can't be specified at the same time")
 
+    windlass.api.setupLogging(ns.debug)
+
     artifacts = Products(products_to_parse=ns.products)
 
     g = windlass.api.Windlass(artifacts)
-    g.setupLogging(ns.debug)
 
     def process(artifact, version=None, **kwargs):
         if not ns.push_only:
