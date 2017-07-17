@@ -24,7 +24,8 @@ images:
     context: fullcontext
     description: "Dockerfile with context"
 
-  - name: fakerepopartial
-    repo: http://not.a.real.host/path/fakerepo.git
-    context: .
-    dockerfile: partialdef/Dockerfile
+# TODO(kerrin) disable for now, until we can recognizes the url
+#  - name: fakerepopartial
+#    repo: http://not.a.real.host/path/fakerepo.git
+#    context: .
+#    dockerfile: partialdef/Dockerfile

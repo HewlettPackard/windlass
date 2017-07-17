@@ -137,26 +137,7 @@ def pull_image(remote, name):
     return image
 
 
-def build_image(image_def, nocache=False, pull=False):
-    if 'remote' in image_def:
-        im = pull_image(image_def['remote'], image_def['name'])
-    else:
-        # TODO(kerrin) - repo should be relative the defining yaml file
-        # and not the current working directory of the program. This change
-        # is likely to break this.
-        repopath = os.path.abspath('.')
-        dockerfile = image_def.get('dockerfile', None)
-        logging.debug('Expecting repository at %s' % repopath)
-        im = build_image_from_local_repo(repopath,
-                                         image_def['context'],
-                                         image_def['name'],
-                                         nocache=nocache,
-                                         dockerfile=dockerfile,
-                                         pull=pull)
-        logging.info('Get image %s completed', image_def['name'])
-    return im
-
-
+@windlass.api.register_type('images')
 class Image(windlass.api.Artifact):
 
     def url(self, version=None, docker_image_registry=None):
@@ -171,7 +152,25 @@ class Image(windlass.api.Artifact):
 
     def build(self):
         # How to pass in no-docker-cache and docker-pull arguments.
-        build_image(self.data)
+        image_def = self.data
+
+        if 'remote' in image_def:
+            pull_image(image_def['remote'], image_def['name'])
+        else:
+            # TODO(kerrin) - repo should be relative the defining yaml file
+            # and not the current working directory of the program. This change
+            # is likely to break this.
+            repopath = self.metadata['repopath']
+
+            dockerfile = image_def.get('dockerfile', None)
+            logging.debug('Expecting repository at %s' % repopath)
+            build_image_from_local_repo(repopath,
+                                        image_def['context'],
+                                        image_def['name'],
+                                        nocache=False,
+                                        dockerfile=dockerfile,
+                                        pull=False)
+            logging.info('Get image %s completed', image_def['name'])
 
     def download(self, version, docker_image_registry):
         docker = from_env(version='auto')

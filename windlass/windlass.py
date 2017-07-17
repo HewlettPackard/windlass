@@ -16,7 +16,6 @@
 #
 
 import windlass.api
-from windlass.products import Products
 
 
 from argparse import ArgumentParser
@@ -60,9 +59,7 @@ def main():
 
     windlass.api.setupLogging(ns.debug)
 
-    artifacts = Products(products_to_parse=ns.products)
-
-    g = windlass.api.Windlass(artifacts)
+    g = windlass.api.Windlass(ns.products)
 
     def process(artifact, version=None, **kwargs):
         if not ns.push_only:
