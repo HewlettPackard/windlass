@@ -169,7 +169,7 @@ class Image(windlass.api.Artifact):
                                         image_def['name'],
                                         nocache=False,
                                         dockerfile=dockerfile,
-                                        pull=False)
+                                        pull=True)
             logging.info('Get image %s completed', image_def['name'])
 
     def download(self, version, docker_image_registry):
