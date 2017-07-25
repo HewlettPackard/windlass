@@ -29,6 +29,33 @@ def load_proxy():
     return {key: os.environ[key] for key in proxy_keys if key in os.environ}
 
 
+def check_docker_stream(stream, name):
+    # Read output from docker command and raise exception
+    # if docker hit an error processing the command.
+    # Also log messages if debugging is turned on.
+    last_msgs = []
+    for line in stream:
+        if not line:
+            continue
+
+        data = yaml.load(line)
+        if 'status' in data:
+            if 'id' in data:
+                msg = '%s layer %s: %s' % (name,
+                                           data['id'],
+                                           data['status'])
+            else:
+                msg = '%s: %s' % (name, data['status'])
+            if msg not in last_msgs:
+                logging.debug(msg)
+                last_msgs.append(msg)
+        if 'error' in data:
+            logging.error("Error building image %s:%s" % (
+                name, "\n".join(last_msgs)))
+            raise Exception('%s ERROR from docker: %s' % (
+                name, data['error']))
+
+
 def push_image(name, imagename, push_tag='latest', auth_config=None):
     docker = from_env(version='auto')
     logging.info('%s: Pushing as %s:%s', name, imagename, push_tag)
@@ -36,26 +63,10 @@ def push_image(name, imagename, push_tag='latest', auth_config=None):
     # raises exception if imagename is missing
     docker.images.get(imagename + ':' + push_tag)
 
-    r = docker.images.push(imagename, push_tag, auth_config=auth_config)
-    last_msgs = []
-    for line in r.split('\n'):
-        if line != '':
-            data = yaml.load(line)
-            if 'status' in data:
-                if 'id' in data:
-                    msg = '%s layer %s: %s' % (name,
-                                               data['id'],
-                                               data['status'])
-                else:
-                    msg = '%s: %s' % (name, data['status'])
-                if msg not in last_msgs:
-                    logging.debug(msg)
-                    last_msgs.append(msg)
-            if 'error' in data:
-                logging.error("Error building image %s:%s"
-                              % (imagename, "\n".join(last_msgs)))
-                raise Exception('%s ERROR when pushing: %s' % (name,
-                                                               data['error']))
+    output = docker.images.push(
+        imagename, push_tag, auth_config=auth_config,
+        stream=True)
+    check_docker_stream(output, name)
     return True
 
 
@@ -130,7 +141,8 @@ def pull_image(remote, name):
 
     imagename, tag = split_image(name)
 
-    docker.api.pull(remote)
+    output = docker.api.pull(remote, stream=True)
+    check_docker_stream(output, name)
     docker.api.tag(remote, imagename, tag)
 
     image = docker.images.get(name)
