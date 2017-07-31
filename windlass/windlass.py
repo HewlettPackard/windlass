@@ -62,14 +62,13 @@ def main():
     g = windlass.api.Windlass(ns.products)
 
     def process(artifact, version=None, **kwargs):
+        # Optimize building and pushing to registry in one call
         if not ns.push_only:
-            if version:
-                artifact.download(**kwargs)
-            else:
-                artifact.build()
+            artifact.build()
 
         if not ns.build_only:
-            artifact.upload(**kwargs)
+            # TODO(kerrin) Should version be required?
+            artifact.upload(version, **kwargs)
 
     failed = g.run(process,
                    version=ns.version,
