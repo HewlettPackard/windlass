@@ -186,12 +186,16 @@ class Windlass(object):
                 'Processing image %s failed with exception', artifact.name)
             self.failure_occured.set()
 
-    def run(self, processor, *args, **kwargs):
+    def run(self, processor, type=None, *args, **kwargs):
         # Reset events.
         self.procs = []
 
         d = defaultdict(list)
         for artifact in self.artifacts:
+            if type is not None and not isinstance(artifact, type):
+                logging.debug(
+                    'Skipping artifact %s because wrong type' % artifact.name)
+                continue
             k = artifact.priority
             d[k].append(artifact)
 
@@ -215,18 +219,23 @@ class Windlass(object):
         if failed:
             raise Exception('Failed to process artifacts')
 
-    def list(self, version=None, **kwargs):
+    def list(self, version=None, type=None, **kwargs):
         for artifact in self.artifacts:
-            yield artifact.url(version, **kwargs)
+            if type is not None and isinstance(artifact, type):
+                yield artifact.url(version, **kwargs)
 
     def build(self):
         self.run(lambda artifact: artifact.build())
 
-    def download(self, version, *args, **kwargs):
-        self.run(lambda artifact: artifact.download(version, *args, **kwargs))
+    def download(self, version, type=None, *args, **kwargs):
+        self.run(
+            lambda artifact: artifact.download(version, *args, **kwargs),
+            type=type)
 
-    def upload(self, version, *args, **kwargs):
-        self.run(lambda artifact: artifact.upload(version, *args, **kwargs))
+    def upload(self, version, type=None, *args, **kwargs):
+        self.run(
+            lambda artifact: artifact.upload(version, *args, **kwargs),
+            type=type)
 
 
 def setupLogging(debug=False):
