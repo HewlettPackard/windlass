@@ -58,7 +58,7 @@ class Chart(windlass.api.Artifact):
         logging.info('Building %s in %s' % (self.name, chartdir))
 
         # Can use --version here also
-        cmd = ['helm', 'package', chartdir]
+        cmd = ['helm', 'package', '--save=false', chartdir]
 
         if subprocess.call(cmd) != 0:
             raise Exception('Failed to build chart: %s' % self.name)
