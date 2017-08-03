@@ -22,6 +22,11 @@ RUN set -e \
         docker \
         git \
         python3 \
+    # Install development libraries for pip3 install later
+    && apk add --update --no-cache --virtual .build-deps \
+        python3-dev \
+        gcc \
+        musl-dev \
     ;
 
 ENV GIT_SSL_NO_VERIFY=
@@ -45,8 +50,10 @@ ENV GATHER_VERSION=0.1.0
 COPY dist/windlass-${GATHER_VERSION}-py3-none-any.whl /
 
 RUN set -e \
+
     && pip3 install --no-cache-dir \
        windlass-${GATHER_VERSION}-py3-none-any.whl \
+
     ;
 
 VOLUME /var/run/docker.sock
