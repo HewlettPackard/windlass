@@ -30,5 +30,6 @@ docker run --tty \
        --volume /var/run/docker.sock:/var/run/docker.sock \
        --volume $PWD:$PWD \
        --workdir=$PWD \
-       -e http_proxy -e https_proxy -e no_proxy \
+       --env http_proxy --env https_proxy --env no_proxy \
+       --env DOCKER_USER --env DOCKER_TOKEN \
        zing/windlass:latest $*
