@@ -12,6 +12,7 @@
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and limitations
 # under the License.
+#
 
 import windlass.api
 import io
@@ -77,14 +78,91 @@ class Chart(windlass.api.Artifact):
             raise Exception(
                 'Failed to download chart %s' % chart_name)
 
-        local_version = self.get_local_version()
-        local_file = self.get_chart_name(local_version)
-        with open(local_file, 'wb') as fp:
+        # Save the chart with the version and don't try and package
+        # the chart as a usable chart under the local version.
+        # The package_chart can't take a chart and package it under
+        # the development version, like we do with images.
+        with open(chart_name, 'wb') as fp:
             fp.write(resp.content)
+
+        # TODO(kerrin) post publishing expects the local version
+        # to be present so we need to save that.
+        local_version = self.get_local_version()
+        local_chart_name = self.get_chart_name(local_version)
+        with open(local_chart_name, 'wb') as fp:
+            fp.write(resp.content)
+
+    def package_chart(self, local_version, version=None, **kwargs):
+        '''Package chart
+
+        Take the chart file and process it, returning the contents
+        of a chart with, different version, and apply all the values
+        specified in the configuration file.
+        '''
+        local_chart_name = self.get_chart_name(local_version)
+
+        tfile = tarfile.open(local_chart_name, 'r:gz')
+
+        def get_data(filename):
+            membername = os.path.join(self.name, filename)
+            yaml = tfile.extractfile(membername)
+            return membername, ruamel.yaml.load(
+                yaml, Loader=ruamel.yaml.RoundTripLoader)
+
+        chart_file, chart_data = get_data('Chart.yaml')
+        chart_data['version'] = version
+
+        values_file, values_data = get_data('values.yaml')
+        values = self.data.get('values', None)
+        if values:
+            # TODO(kerrin) expand the amount of data available
+            # for users to control
+            data = {
+                'version': version,
+                'name': self.name,
+            }
+            data.update(kwargs)
+
+            def expand_values(source, expanded):
+                for key, value in source.items():
+                    if isinstance(value, dict):
+                        expand_values(value, expanded[key])
+                    else:
+                        newvalue = value.format(**data)
+                        expanded[key] = newvalue
+            # Update by reference the values_data dictionary based on
+            # the format of the supplied values field.
+            expand_values(values, values_data)
+
+        with tempfile.NamedTemporaryFile() as tmp_file:
+            with tarfile.open(tmp_file.name, 'w:gz') as out:
+                for member in tfile.getmembers():
+                    if member.name == chart_file:
+                        # Override the size of the file
+                        datastr = ruamel.yaml.dump(
+                            chart_data,
+                            Dumper=ruamel.yaml.RoundTripDumper)
+                        databytes = datastr.encode('utf-8')
+                        member.size = len(databytes)
+                        out.addfile(member, io.BytesIO(databytes))
+                    elif member.name == values_file:
+                        # Override the size of the file
+                        datastr = ruamel.yaml.dump(
+                            values_data,
+                            Dumper=ruamel.yaml.RoundTripDumper)
+                        databytes = datastr.encode('utf-8')
+                        member.size = len(databytes)
+                        out.addfile(member, io.BytesIO(databytes))
+                    else:
+                        out.addfile(member, tfile.extractfile(member.name))
+
+            fp = open(tmp_file.name, 'rb')
+            return fp.read()
 
     def upload(self,
                version=None, charts_url=None,
                docker_user=None, docker_password=None,
+               docker_image_registry=None,
                **kwargs):
         # TODO(kerrin) can we reuse the docker_* credentials like this,
         # it works for artifactory, not sure about AWS.
@@ -92,49 +170,31 @@ class Chart(windlass.api.Artifact):
             raise Exception(
                 'charts_url not specified. Unable to publish chart')
 
-        with tempfile.NamedTemporaryFile() as tmp_file:
-            # The location needs to be set in order to find the development
-            # version of the chart.
-            local_version = self.get_local_version()
-            local_chart_name = self.get_chart_name(local_version)
+        # The location needs to be set in order to find the development
+        # version of the chart.
+        local_version = self.get_local_version()
+        local_chart_name = self.get_chart_name(local_version)
 
-            if version:
-                chart_file = os.path.join(self.name, 'Chart.yaml')
-                tfile = tarfile.open(local_chart_name, 'r:gz')
-                chart_yaml = tfile.extractfile(chart_file)
-                chart_data = ruamel.yaml.load(
-                    chart_yaml, Loader=ruamel.yaml.RoundTripLoader)
-                chart_data['version'] = version
+        if version:
+            chart_name = self.get_chart_name(version)
+            data = self.package_chart(
+                local_version, version,
+                registry=docker_image_registry)
+        else:  # No version deploy the local development version
+            chart_name = local_chart_name
+            data = open(local_chart_name, 'rb').read()
 
-                chart_name = self.get_chart_name(version)
-                with tarfile.open(tmp_file.name, 'w:gz') as out:
-                    for member in tfile.getmembers():
-                        if member.name == chart_file:
-                            # Override the size of the file
-                            datastr = ruamel.yaml.dump(
-                                chart_data,
-                                Dumper=ruamel.yaml.RoundTripDumper)
-                            databytes = datastr.encode('utf-8')
-                            member.size = len(databytes)
-                            out.addfile(member, io.BytesIO(databytes))
-                        else:
-                            out.addfile(member, tfile.extractfile(member.name))
+        logging.info('%s: Pushing chart as %s' % (self.name, chart_name))
 
-                out_filename = tmp_file.name
-            else:  # No version deploy the local development version
-                chart_name = out_filename = local_chart_name
-
-            logging.info('%s: Pushing chart as %s' % (self.name, chart_name))
-
-            auth = requests.auth.HTTPBasicAuth(docker_user, docker_password)
-            resp = requests.put(
-                os.path.join(charts_url, chart_name),
-                data=open(out_filename, 'rb'),
-                auth=auth,
-                verify='/etc/ssl/certs')
-            if resp.status_code != 201:
-                raise Exception(
-                    'Failed (status: %d) to upload %s' % (
-                        resp.status_code, local_chart_name))
+        auth = requests.auth.HTTPBasicAuth(docker_user, docker_password)
+        resp = requests.put(
+            os.path.join(charts_url, chart_name),
+            data=data,
+            auth=auth,
+            verify='/etc/ssl/certs')
+        if resp.status_code != 201:
+            raise Exception(
+                'Failed (status: %d) to upload %s' % (
+                    resp.status_code, local_chart_name))
 
         logging.info('%s: Successfully pushed chart' % self.name)

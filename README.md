@@ -120,4 +120,29 @@ When dealing with docker container images Windlass has 3 uses to cover:
 
 ### Charts
 
-TODO
+"Helm uses a packaging format called charts. A chart is a collection of files
+that describe a related set of Kubernetes resources."
+
+We have a requirement to publish images and charts under different unique
+versions from CI. When we do so we can break the charts as the reference
+to the image they deploy will change from a development tag to an unique
+tag. In order to keep the charts working after publication we have added a
+mechanism update the references by modifying the charts values.yaml file.
+This mechanism is only applied when we upload a chart with under a specific
+version.
+
+In the yaml configuration files, we can specify a set of values we wish to
+override in the values.yaml. We can currently reference the _version+_,
+_name_ and _registry_ we are upload to.
+
+For example:
+
+        - name: ubuntu
+          location: helm
+          values:
+              image:
+                  tag: "{version}"
+                  repository: "{registry}/{name}"
+
+will override the image.tag value to be the version been published and update
+the chart to point to the correct image.
