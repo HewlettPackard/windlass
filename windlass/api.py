@@ -200,7 +200,7 @@ class Windlass(object):
                 'Processing image %s failed with exception', artifact.name)
             self.failure_occured.set()
 
-    def run(self, processor, type=None, *args, **kwargs):
+    def run(self, processor, type=None, parallel=True, *args, **kwargs):
         # Reset events.
         self.procs = []
 
@@ -225,8 +225,12 @@ class Windlass(object):
                     kwargs=kwargs,
                     name=artifact.name,
                 )
-                p.start()
-                self.procs.append(p)
+                if parallel:
+                    p.start()
+                    self.procs.append(p)
+                else:
+                    p.run()
+
             if not self.wait_for_procs():
                 failed = True
 

@@ -27,6 +27,9 @@ def main():
     parser = ArgumentParser(description='Windlass products from other repos')
     parser.add_argument('--debug', action='store_true',
                         help='Enable debug logging')
+    parser.add_argument('--no-parallel', action='store_true',
+                        help='Windlass artifacts serially. This is '
+                        'helpful for debugging')
     parser.add_argument('products', default=[], type=str, nargs='*',
                         help='List of products.')
 
@@ -79,6 +82,7 @@ def main():
     docker_password = os.environ.get('DOCKER_TOKEN', None)
 
     failed = g.run(process,
+                   parallel=not ns.no_parallel,
                    version=ns.version,
                    docker_image_registry=ns.docker_image_registry,
                    charts_url=ns.charts_url,
