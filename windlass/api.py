@@ -16,6 +16,7 @@
 #
 
 from collections import defaultdict
+import functools
 import git
 import logging
 import multiprocessing
@@ -209,6 +210,89 @@ class RetryableFailure(Exception):
     """
 
 
+class retry(object):
+    """Retry decorator
+
+    Add this decorator to any method that we need to retry.
+    """
+
+    def __init__(self, max_retries=3, retry_backoff=5):
+        self.max_retries = max_retries
+        self.retry_backoff = retry_backoff
+
+    def __call__(self, func):
+        @functools.wraps(func)
+        def f(*args, **kwargs):
+            artifact = args[0]
+            for i in range(0, self.max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except RetryableFailure:
+                    logging.exception(
+                        '%s: problem occuried retrying, backing '
+                        'off %d seconds' % (
+                            artifact.name, self.retry_backoff))
+                    time.sleep(self.retry_backoff)
+
+            raise Exception('%s: Maximum number of retries occurred (%d)' % (
+                artifact.name, self.max_retries))
+
+        return f
+
+
+class fall_back(object):
+    """Fall back decorator
+
+    This decorator will take the keys to fall back on. This means that we
+    will call the decorated once for each item in the list of values passed
+    as a keyword argument until it passes.
+
+    This allows use to download proposed artifacts that haven't been promoted
+    yet. We try to download the artifact from alpha registry but this can
+    fail and we will fall back to downloading the artifact from staging.
+    """
+
+    def __init__(self, *keys, **kwargs):
+        self.keys = keys
+        self.first_only = kwargs.get('first_only', False)
+
+    def __call__(self, func):
+        @functools.wraps(func)
+        def f(*args, **kwargs):
+            # We support falling back on multiple keys here. Collect them
+            # all and call the decorated method with the i'th fall back
+            # of each key
+            all_fall_backs = []
+            for key in self.keys:
+                fall_backs = kwargs.pop(key, [])
+                # if the argument isn't a list then convert it to a list
+                if isinstance(fall_backs, list):
+                    all_fall_backs.append(fall_backs)
+                else:
+                    all_fall_backs.append([fall_backs])
+
+            if not all_fall_backs:
+                raise Exception('Missing arguments: %s' % ','.join(self.keys))
+
+            for count, fall_backs in enumerate(zip(*all_fall_backs)):
+                for idx, fall_back in enumerate(fall_backs):
+                    kwargs[self.keys[idx]] = fall_back
+                try:
+                    return func(*args, **kwargs)
+                except Exception:
+                    if self.first_only or count == len(fall_backs):
+                        # Failed to find artifact
+                        raise
+                    # log error
+
+            # No artifact found
+            artifact = args[0]
+            raise Exception('Failed to find artifact %s, version: %s' % (
+                artifact.name, kwargs['version'] or artifact.version))
+
+        return f
+
+
 class Windlass(object):
 
     def __init__(self, products_to_parse=None, artifacts=None):
@@ -231,29 +315,16 @@ class Windlass(object):
             if len([p for p in self.procs if p.is_alive()]) == 0:
                 return True
 
-    def work(self, process, artifact, retry_count=0, **kwargs):
-        if retry_count > self.max_retries:
-            logging.error(
-                '%s: Maximum number of retries occurred (%d)' % (
-                    artifact.name, self.max_retries))
-            self.failure_occured.set()
-            return
-
-        # Update retry count
-        retry_count += 1
-
+    def work(self, parallel, process, artifact, **kwargs):
         try:
             process(artifact, **kwargs)
-        except RetryableFailure:
-            logging.exception(
-                '%s: problem occuried retrying, backing off %d seconds' % (
-                    artifact.name, self.retry_backoff))
-            time.sleep(self.retry_backoff)
-            return self.work(process, artifact, retry_count, **kwargs)
         except Exception:
             logging.exception(
                 'Processing image %s failed with exception', artifact.name)
             self.failure_occured.set()
+            if not parallel:
+                # If not running parallel raise exception here
+                raise
 
     def run(self, processor, type=None, parallel=True, **kwargs):
         # Reset events.
@@ -274,6 +345,7 @@ class Windlass(object):
                 p = multiprocessing.Process(
                     target=self.work,
                     args=(
+                        parallel,
                         processor,
                         artifact,
                     ),

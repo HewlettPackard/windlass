@@ -64,6 +64,8 @@ class Chart(windlass.api.Artifact):
         if subprocess.call(cmd) != 0:
             raise Exception('Failed to build chart: %s' % self.name)
 
+    @windlass.api.retry()
+    @windlass.api.fall_back('charts_url')
     def download(self, version=None, charts_url=None, **kwargs):
         if version is None and self.version is None:
             raise Exception('Must specify version of chart to download.')
@@ -160,6 +162,9 @@ class Chart(windlass.api.Artifact):
             fp = open(tmp_file.name, 'rb')
             return fp.read()
 
+    @windlass.api.retry()
+    @windlass.api.fall_back(
+        'charts_url', 'docker_image_registry', first_only=True)
     def upload(self,
                version=None,
                charts_url=None,

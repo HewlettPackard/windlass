@@ -188,6 +188,8 @@ class Image(windlass.api.Artifact):
                                         pull=True)
             logging.info('Get image %s completed', image_def['name'])
 
+    @windlass.api.retry()
+    @windlass.api.fall_back('docker_image_registry')
     def download(self, version=None, docker_image_registry=None, **kwargs):
         if version is None and self.version is None:
             raise Exception('Must specify version of image to download.')
@@ -210,6 +212,8 @@ class Image(windlass.api.Artifact):
             # Tag the image with the version but without the repository
             self.client.api.tag(remoteimage, self.name, self.version)
 
+    @windlass.api.retry()
+    @windlass.api.fall_back('docker_image_registry', first_only=True)
     def upload(self, version=None, docker_image_registry=None,
                docker_user=None, docker_password=None,
                **kwargs):
