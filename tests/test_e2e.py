@@ -112,6 +112,34 @@ class Test_E2E_FakeRepo(FakeRegistry):
         self.assertThat(
             response.json()['name'], Equals('fakerepo%s' % imagename))
 
+    def test_version_upload(self):
+        self.client.containers.run(
+            'zing/windlass:latest',
+            ('--debug --push-docker-registry 127.0.0.1:%d '
+             '--push-version=12345 '
+             '%s/products/test.yml') % (
+                 self.registry_port, self.repodir
+                ),
+            remove=True,
+            volumes={'/var/run/docker.sock': {'bind': '/var/run/docker.sock'},
+                     self.repodir: {'bind': self.repodir}},
+            working_dir=self.repodir,
+            environment=windlass.images.load_proxy(),
+            )
+
+        fullimagename = '127.0.0.1:%s/fakerepofull:12345' % (
+            self.registry_port)
+
+        try:
+            self.client.images.get(fullimagename)
+        except docker.errors.ImageNotFound:
+            pass
+        else:
+            self.fail("Image %s exists. It shouldn't" % fullimagename)
+
+        # We can pull image from registry
+        self.client.images.pull(fullimagename)
+
     def test_download(self):
         # pull alpine:3.5
         test_image_name = '127.0.0.1:%d/testing/download:12345' % (
@@ -124,7 +152,7 @@ class Test_E2E_FakeRepo(FakeRegistry):
         self.client.containers.run(
             'zing/windlass:latest',
             ('--debug --download-docker-registry 127.0.0.1:%d '
-             '--download --no-push --version 12345 '
+             '--download --no-push --download-version 12345 '
              '%s/products/test-download.yaml') % (
                  self.registry_port, self.repodir),
             remove=True,

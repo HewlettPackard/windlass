@@ -70,8 +70,10 @@ def main():
     push_group.add_argument('--push-charts-url',
                             help='Helm repositories.')
 
-    parser.add_argument('--version', type=str,
+    parser.add_argument('--download-version', type=str,
                         help='Specify version of artifacts.')
+    parser.add_argument('--push-version', type=str,
+                        help='Version to use for upload artifacts.')
 
     ns = parser.parse_args()
 
@@ -79,12 +81,12 @@ def main():
 
     g = windlass.api.Windlass(ns.products)
 
-    def process(artifact, version=None, **kwargs):
+    def process(artifact, **kwargs):
         # Optimize building and pushing to registry in one call
         if not ns.push_only:
             if ns.download:
                 artifact.download(
-                    ns.version,
+                    version=ns.download_version,
                     docker_image_registry=ns.download_docker_registry,
                     charts_url=ns.download_charts_url,
                     **kwargs)
@@ -94,6 +96,7 @@ def main():
         if not ns.no_push:
             if not ns.build_only:
                 artifact.upload(
+                    version=ns.push_version,
                     docker_image_registry=ns.push_docker_registry,
                     charts_url=ns.push_charts_url,
                     **kwargs)
@@ -103,7 +106,6 @@ def main():
 
     failed = g.run(process,
                    parallel=not ns.no_parallel,
-                   version=ns.version,
                    docker_user=docker_user,
                    docker_password=docker_password)
 

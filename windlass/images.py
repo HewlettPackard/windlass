@@ -135,39 +135,46 @@ def build_image_from_local_repo(repopath, imagepath, name, tags=[],
     return image
 
 
-def pull_image(remote, name):
-    docker = from_env(version='auto')
-    logging.info("%s: Pulling image from %s", name, remote)
-
-    imagename, tag = split_image(name)
-
-    output = docker.api.pull(remote, stream=True)
-    check_docker_stream(output, name)
-    docker.api.tag(remote, imagename, tag)
-
-    image = docker.images.get(name)
-    return image
-
-
 @windlass.api.register_type('images')
 class Image(windlass.api.Artifact):
 
+    def __init__(self, data):
+        super().__init__(data)
+        self.name, devtag = split_image(data['name'])
+        if not self.version:
+            self.version = devtag
+
+    def pull_image(self, remoteimage, imagename, tag):
+        """Pull the remoteimage down
+
+        And tag it with the imagename and tag.
+        """
+        docker = from_env(version='auto')
+        logging.info("%s: Pulling image from %s", imagename, remoteimage)
+
+        output = docker.api.pull(remoteimage, stream=True)
+        check_docker_stream(output, imagename)
+        docker.api.tag(remoteimage, imagename, tag)
+
+        image = docker.images.get('%s:%s' % (imagename, tag))
+        return image
+
     def url(self, version=None, docker_image_registry=None):
-        image_name, devtag = split_image(self.name)
         if version is None:
-            version = devtag
+            version = self.version
 
         if docker_image_registry:
             return '%s/%s:%s' % (
-                docker_image_registry.rstrip('/'), image_name, version)
-        return '%s:%s' % (image_name, version)
+                docker_image_registry.rstrip('/'), self.name, version)
+        return '%s:%s' % (self.name, version)
 
     def build(self):
         # How to pass in no-docker-cache and docker-pull arguments.
         image_def = self.data
 
         if 'remote' in image_def:
-            pull_image(image_def['remote'], image_def['name'])
+            self.pull_image(
+                image_def['remote'], *split_image(image_def['name']))
         else:
             # TODO(kerrin) - repo should be relative the defining yaml file
             # and not the current working directory of the program. This change
@@ -184,25 +191,33 @@ class Image(windlass.api.Artifact):
                                         pull=True)
             logging.info('Get image %s completed', image_def['name'])
 
-    def download(self, version, docker_image_registry, **kwargs):
-        if version is None:
+    def download(self, docker_image_registry, version=None, **kwargs):
+        if version is None and self.version is None:
             raise Exception('Must specify version of image to download.')
 
         docker = from_env(version='auto')
-        image_name, devtag = split_image(self.name)
 
-        logging.info('Pinning image: %s to pin: %s' % (
-            self.name, version))
-        remoteimage = '%s/%s:%s' % (
-            docker_image_registry, image_name, version)
-        # Pull the image down and tag with developer name
-        pull_image(remoteimage, self.name)
+        tag = version or self.version
 
-        docker.api.tag(remoteimage, image_name, version)
+        logging.info('Pinning image: %s to pin: %s' % (self.name, tag))
+        remoteimage = '%s/%s:%s' % (docker_image_registry, self.name, tag)
+
+        # Pull the remoteimage down and tag it with the name of artifact
+        # and the requested version
+        self.pull_image(remoteimage, self.name, tag)
+
+        if tag != self.version:
+            # Tag the image with the version but without the repository
+            docker.api.tag(remoteimage, self.name, self.version)
 
     def upload(self, version=None, docker_image_registry=None,
                docker_user=None, docker_password=None,
                **kwargs):
+        if docker_image_registry is None:
+            raise Exception(
+                'docker_image_registry not set for image upload. '
+                'Unable to publish')
+
         if docker_user:
             auth_config = {
                 'username': docker_user,
@@ -212,12 +227,19 @@ class Image(windlass.api.Artifact):
 
         docker = from_env(version='auto')
 
-        fullname = self.url(version, docker_image_registry)
-        image_name, tag = split_image(fullname)
+        # Local image name on the node
+        local_fullname = self.url(self.version)
+
+        # Upload image with this tag
+        upload_tag = version or self.version
+        upload_name = '%s/%s' % (docker_image_registry.rstrip('/'), self.name)
+        fullname = '%s:%s' % (upload_name, upload_tag)
+
         try:
             if docker_image_registry:
-                docker.api.tag(self.name, image_name, tag)
-            push_image(self.name, image_name, tag, auth_config=auth_config)
+                docker.api.tag(local_fullname, upload_name, upload_tag)
+            push_image(
+                self.name, upload_name, upload_tag, auth_config=auth_config)
         finally:
             if docker_image_registry:
                 docker.api.remove_image(fullname)

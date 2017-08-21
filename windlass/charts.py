@@ -64,8 +64,8 @@ class Chart(windlass.api.Artifact):
         if subprocess.call(cmd) != 0:
             raise Exception('Failed to build chart: %s' % self.name)
 
-    def download(self, version, charts_url, **kwargs):
-        if version is None:
+    def download(self, charts_url, version=None, **kwargs):
+        if version is None and self.version is None:
             raise Exception('Must specify version of chart to download.')
 
         # Download
@@ -73,7 +73,7 @@ class Chart(windlass.api.Artifact):
             raise Exception(
                 'charts_url is not specified. Unable to download charts')
 
-        chart_name = self.get_chart_name(version)
+        chart_name = self.get_chart_name(version or self.version)
         resp = requests.get(
             os.path.join(charts_url, chart_name),
             verify='/etc/ssl/certs')
@@ -88,18 +88,10 @@ class Chart(windlass.api.Artifact):
         with open(chart_name, 'wb') as fp:
             fp.write(resp.content)
 
-        # TODO(kerrin) post publishing expects the local version
-        # to be present so we need to save that.
-        try:
-            local_version = self.get_local_version()
-        except FileNotFoundError:
-            # If the local version if not present then ignore
-            # saving this version
-            pass
-        else:
-            local_chart_name = self.get_chart_name(local_version)
-            with open(local_chart_name, 'wb') as fp:
-                fp.write(resp.content)
+        # We can't save the chart under the version specified
+        # in the original Chart.yaml. The reason being that we
+        # will need to recreate the values.yaml file as the
+        # chart doesn't reference the same image going forward.
 
     def package_chart(self, local_version, version=None, **kwargs):
         '''Package chart
@@ -169,7 +161,8 @@ class Chart(windlass.api.Artifact):
             return fp.read()
 
     def upload(self,
-               version=None, charts_url=None,
+               version=None,
+               charts_url=None,
                docker_user=None, docker_password=None,
                docker_image_registry=None,
                **kwargs):
@@ -179,31 +172,41 @@ class Chart(windlass.api.Artifact):
             raise Exception(
                 'charts_url not specified. Unable to publish chart')
 
-        # The location needs to be set in order to find the development
-        # version of the chart.
-        local_version = self.get_local_version()
-        local_chart_name = self.get_chart_name(local_version)
+        # local_version is the version of chart on the local
+        # filesystem. We need this to find the chart to upload.
+        # If self.version is not set, we call get_local_version
+        # which will look up the local Chart.yaml file, so the
+        # location of the chart sources will be required for this
+        # to work.
+        local_version = self.version or self.get_local_version()
 
-        if version:
-            chart_name = self.get_chart_name(version)
+        # Version to upload package as.
+        upload_version = version or self.version
+        upload_chart_name = self.get_chart_name(upload_version)
+
+        # Specified version is different to that on the filesystem. So
+        # we need to package the chart with the new version and
+        # any updated values.
+        if upload_version != local_version:
             data = self.package_chart(
-                local_version, version,
+                local_version, upload_version,
                 registry=docker_image_registry)
         else:  # No version deploy the local development version
-            chart_name = local_chart_name
+            local_chart_name = self.get_chart_name(local_version)
             data = open(local_chart_name, 'rb').read()
 
-        logging.info('%s: Pushing chart as %s' % (self.name, chart_name))
+        logging.info('%s: Pushing chart as %s' % (
+            self.name, upload_chart_name))
 
         auth = requests.auth.HTTPBasicAuth(docker_user, docker_password)
         resp = requests.put(
-            os.path.join(charts_url, chart_name),
+            os.path.join(charts_url, upload_chart_name),
             data=data,
             auth=auth,
             verify='/etc/ssl/certs')
         if resp.status_code != 201:
             raise Exception(
                 'Failed (status: %d) to upload %s' % (
-                    resp.status_code, local_chart_name))
+                    resp.status_code, upload_chart_name))
 
         logging.info('%s: Successfully pushed chart' % self.name)

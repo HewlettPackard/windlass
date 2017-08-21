@@ -47,19 +47,32 @@ class Artifact(object):
 
     metadata - system specific data set by Windlass, used
                Windlass to manage the artifacts
+
+    version  - default version of artifact.
+               * None implies that we are managing the development version
+                 of this artifact as specified in the repository or the
+                 default version of this type of artifact.
+               * Non-none means that we have overridden the development
+                 version.
+
+    Note that we the upload, and download method can override the default
+    version. So we can publish artifacts under a unique version.
+
     """
 
     def __init__(self, data):
         self.data = data
         self.metadata = {}
+        self.name = data['name']
+        self.version = data.get('version', None)
+        self.priority = data.get('priority', 0)
 
-    @property
-    def priority(self):
-        return self.data.get('priority', 0)
+    def set_version(self, version):
+        """Set vesrion of artifact.
 
-    @property
-    def name(self):
-        return self.data['name']
+        This is the version we will build, upload and download.
+        """
+        self.version = version
 
     def url(self, version=None):
         raise NotImplementedError('url not implemented')
@@ -71,18 +84,23 @@ class Artifact(object):
         """
         raise NotImplementedError('build not implemented')
 
-    def download(self, version, **kwargs):
+    def download(self, version=None, **kwargs):
         """Download the versioned artifact from central registry
 
         This downloads the versioned artifact and if it can, it
         will rename this version to the local development version
         so developers can get going quickly with the latest
         blessed version in there workstation.
+
+        version - override the default version for this operation
         """
         raise NotImplementedError('download not implemented')
 
-    def upload(self, version, **kwargs):
-        """Upload chart to the artifact server"""
+    def upload(self, version=None, **kwargs):
+        """Upload chart to the artifact server
+
+        version - override the default version for this operation
+        """
         raise NotImplementedError('upload not implemented')
 
 
@@ -237,6 +255,10 @@ class Windlass(object):
         if failed:
             raise Exception('Failed to process artifacts')
 
+    def set_version(self, version):
+        for artifact in self.artifacts:
+            artifact.set_version(version)
+
     def list(self, version=None, type=None, **kwargs):
         for artifact in self.artifacts:
             if type is not None and isinstance(artifact, type):
@@ -245,15 +267,34 @@ class Windlass(object):
     def build(self):
         self.run(lambda artifact: artifact.build())
 
-    def download(self, version, type=None, *args, **kwargs):
-        self.run(
-            lambda artifact: artifact.download(version, *args, **kwargs),
-            type=type)
+    def download(self, version=None, type=None, parallel=True,
+                 *args, **kwargs):
+        """Download the artifact
 
-    def upload(self, version, type=None, *args, **kwargs):
+        type - restrict to just downloading artifacts of this type
+
+        version - override the version of the artifacts
+        """
         self.run(
-            lambda artifact: artifact.upload(version, *args, **kwargs),
-            type=type)
+            lambda artifact: artifact.download(
+                version=version, *args, **kwargs),
+            type=type,
+            parallel=parallel)
+
+    def upload(self, version=None, type=None, parallel=True, *args, **kwargs):
+        """Upload artifact
+
+        kwargs keywords contains the destination configuration. This
+        is specific to the artifacts and registry we are uploading to.
+
+        type - restrict to just uploading artifacts of this type
+
+        version - override the version of the artifacts
+        """
+        self.run(
+            lambda artifact: artifact.upload(version=version, *args, **kwargs),
+            type=type,
+            parallel=parallel)
 
 
 def setupLogging(debug=False):
