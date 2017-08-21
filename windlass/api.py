@@ -193,8 +193,11 @@ class Artifacts(object):
 
 class Windlass(object):
 
-    def __init__(self, products_to_parse):
-        self.artifacts = Artifacts(products_to_parse)
+    def __init__(self, products_to_parse=[], artifacts=None):
+        if artifacts:
+            self.artifacts = artifacts
+        else:
+            self.artifacts = Artifacts(products_to_parse)
         self.failure_occured = multiprocessing.Event()
         # This is only used by windlass.py and should be removed?
         self.registry_ready = multiprocessing.Event()
@@ -295,6 +298,16 @@ class Windlass(object):
             lambda artifact: artifact.upload(version=version, *args, **kwargs),
             type=type,
             parallel=parallel)
+
+
+def download(artifacts, parallel=True, *args, **kwargs):
+    g = Windlass(artifacts=artifacts)
+    return g.download(parallel=parallel, *args, **kwargs)
+
+
+def upload(artifacts, parallel=True, *args, **kwargs):
+    g = Windlass(artifacts=artifacts)
+    return g.upload(parallel=parallel, *args, **kwargs)
 
 
 def setupLogging(debug=False):

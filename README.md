@@ -47,23 +47,36 @@ Windlass is designed so that we can meet the following workflows.
 
 ## Running windlass
 
-Download or build all artifacts listed in a yaml file called example.yml:
+### Building
 
-    $ windlass --build-only example
+To build all artifacts listed in a yaml file called example.yaml:
 
-Download all artifacts pinned to the latest validated versions. First check
-out the product integration repository. And run the following:
+    $ windlass --build-only example.yaml
 
-    $ windlass --build-only
-        --artifact-pins /path/to/integration_project/pins
-        --artifactory-image-registry https://registry.artifactory.example.net
-        example
+### Download
+
+Download all artifacts listed in example.yaml with the version
+_0.0.0-abe8b542c9f7b207b05fb09a379f43dfec983d79_:
+
+    $ windlass --download --download-version 0.0.0-abe8b542c9f7b207b05fb09a379f43dfec983d79
+        --download-docker-registry https://registry.example.net
+        example.yaml
+
+### Uploading
 
 Pushing container images to a proxy registry for use in a developer
 environment. This allows developers to expose the container images stored
 in docker to any virtual machines that may make up the developer environment.
 
-    $ windlass --proxy-repository 127.0.0.1:5000 example
+    $ windlass --push-only --push-docker-registry 127.0.0.1:5000 example.yaml
+
+### Building and uploading
+
+If you want to build all images in example.yaml and push them to a local docker
+registry listening on 127.0.0.1:5000 then we do this in one step instead of
+building and then pushing:
+
+    $ windlass --push-docker-registry 127.0.0.1:5000 example.yaml
 
 ## Artifact types
 
@@ -137,12 +150,31 @@ _name_ and _registry_ we are upload to.
 
 For example:
 
-        - name: ubuntu
-          location: helm
-          values:
+        charts:
+
+          - name: ubuntu
+            location: helm
+            values:
               image:
-                  tag: "{version}"
-                  repository: "{registry}/{name}"
+                tag: "{version}"
+                repository: "{registry}/{name}"
 
 will override the image.tag value to be the version been published and update
 the chart to point to the correct image.
+
+## Product integration
+
+Windlass can manage lots of artifacts based on a set of pins. Windlass can parse
+a configuration file called _product-integration.yaml_ file, that it will use
+to generate a list of Artifact objects that it can now manage. Generally this is
+performed via Python api call: _windlass.pins.read\_pins_
+
+## Python API
+
+### windlass.api.Windlass(list_of_product_files)
+
+### windlass.pins.Pins
+
+#### windlass.pins.ImagePins
+
+#### windlass.pins.LanderscaperPins
