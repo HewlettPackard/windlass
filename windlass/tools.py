@@ -13,6 +13,13 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+import os
+
+
+def load_proxy():
+    proxy_keys = ('http_proxy', 'https_proxy', 'no_proxy')
+    return {key: os.environ[key] for key in proxy_keys if key in os.environ}
+
 
 def split_image(image):
     """Get the tag from a full image name.

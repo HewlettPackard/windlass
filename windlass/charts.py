@@ -64,7 +64,7 @@ class Chart(windlass.api.Artifact):
         if subprocess.call(cmd) != 0:
             raise Exception('Failed to build chart: %s' % self.name)
 
-    def download(self, charts_url, version=None, **kwargs):
+    def download(self, version=None, charts_url=None, **kwargs):
         if version is None and self.version is None:
             raise Exception('Must specify version of chart to download.')
 

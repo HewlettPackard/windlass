@@ -17,6 +17,7 @@
 import docker
 import windlass.api
 import windlass.images
+import windlass.tools
 from git import Repo
 import os
 from requests import get
@@ -75,7 +76,7 @@ class Test_E2E_FakeRepo(FakeRegistry):
             volumes={'/var/run/docker.sock': {'bind': '/var/run/docker.sock'},
                      self.repodir: {'bind': self.repodir}},
             working_dir=self.repodir,
-            environment=windlass.images.load_proxy(),
+            environment=windlass.tools.load_proxy(),
             )
         # TODO(kerrin) disable partial image until we recognize remote urls
         # self.check_proper_image_build('partial')
@@ -124,7 +125,7 @@ class Test_E2E_FakeRepo(FakeRegistry):
             volumes={'/var/run/docker.sock': {'bind': '/var/run/docker.sock'},
                      self.repodir: {'bind': self.repodir}},
             working_dir=self.repodir,
-            environment=windlass.images.load_proxy(),
+            environment=windlass.tools.load_proxy(),
             )
 
         fullimagename = '127.0.0.1:%s/fakerepofull:12345' % (
@@ -159,7 +160,7 @@ class Test_E2E_FakeRepo(FakeRegistry):
             volumes={'/var/run/docker.sock': {'bind': '/var/run/docker.sock'},
                      self.repodir: {'bind': self.repodir}},
             working_dir=self.repodir,
-            environment=windlass.images.load_proxy(),
+            environment=windlass.tools.load_proxy(),
             )
 
         self.client.images.get('testing/download:12345')

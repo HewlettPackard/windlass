@@ -199,8 +199,6 @@ class Windlass(object):
         else:
             self.artifacts = Artifacts(products_to_parse)
         self.failure_occured = multiprocessing.Event()
-        # This is only used by windlass.py and should be removed?
-        self.registry_ready = multiprocessing.Event()
 
     def wait_for_procs(self):
         while True:
@@ -213,15 +211,15 @@ class Windlass(object):
             if len([p for p in self.procs if p.is_alive()]) == 0:
                 return True
 
-    def work(self, process, artifact, *args, **kwargs):
+    def work(self, process, artifact, **kwargs):
         try:
-            process(artifact, *args, **kwargs)
+            process(artifact, **kwargs)
         except Exception:
             logging.exception(
                 'Processing image %s failed with exception', artifact.name)
             self.failure_occured.set()
 
-    def run(self, processor, type=None, parallel=True, *args, **kwargs):
+    def run(self, processor, type=None, parallel=True, **kwargs):
         # Reset events.
         self.procs = []
 
@@ -242,7 +240,7 @@ class Windlass(object):
                     args=(
                         processor,
                         artifact,
-                    ) + args,
+                    ),
                     kwargs=kwargs,
                     name=artifact.name,
                 )
@@ -270,8 +268,7 @@ class Windlass(object):
     def build(self):
         self.run(lambda artifact: artifact.build())
 
-    def download(self, version=None, type=None, parallel=True,
-                 *args, **kwargs):
+    def download(self, version=None, type=None, parallel=True, **kwargs):
         """Download the artifact
 
         type - restrict to just downloading artifacts of this type
@@ -279,12 +276,11 @@ class Windlass(object):
         version - override the version of the artifacts
         """
         self.run(
-            lambda artifact: artifact.download(
-                version=version, *args, **kwargs),
+            lambda artifact: artifact.download(version=version, **kwargs),
             type=type,
             parallel=parallel)
 
-    def upload(self, version=None, type=None, parallel=True, *args, **kwargs):
+    def upload(self, version=None, type=None, parallel=True, **kwargs):
         """Upload artifact
 
         kwargs keywords contains the destination configuration. This
@@ -295,19 +291,19 @@ class Windlass(object):
         version - override the version of the artifacts
         """
         self.run(
-            lambda artifact: artifact.upload(version=version, *args, **kwargs),
+            lambda artifact: artifact.upload(version=version, **kwargs),
             type=type,
             parallel=parallel)
 
 
-def download(artifacts, parallel=True, *args, **kwargs):
+def download(artifacts, parallel=True, **kwargs):
     g = Windlass(artifacts=artifacts)
-    return g.download(parallel=parallel, *args, **kwargs)
+    return g.download(parallel=parallel, **kwargs)
 
 
-def upload(artifacts, parallel=True, *args, **kwargs):
+def upload(artifacts, parallel=True, **kwargs):
     g = Windlass(artifacts=artifacts)
-    return g.upload(parallel=parallel, *args, **kwargs)
+    return g.upload(parallel=parallel, **kwargs)
 
 
 def setupLogging(debug=False):

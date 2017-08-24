@@ -16,17 +16,12 @@
 
 from docker import from_env
 import windlass.api
-from windlass.tools import split_image
+import windlass.tools
 from git import Repo
 import logging
 import os
 
 import yaml
-
-
-def load_proxy():
-    proxy_keys = ('http_proxy', 'https_proxy', 'no_proxy')
-    return {key: os.environ[key] for key in proxy_keys if key in os.environ}
 
 
 def check_docker_stream(stream, name):
@@ -84,7 +79,7 @@ def clean_tag(tag):
 def build_verbosly(name, path, nocache=False, dockerfile=None,
                    pull=False):
     docker = from_env(version='auto')
-    bargs = load_proxy()
+    bargs = windlass.tools.load_proxy()
     logging.info("Building %s from path %s", name, path)
     stream = docker.api.build(path=path,
                               tag=name,
@@ -140,23 +135,24 @@ class Image(windlass.api.Artifact):
 
     def __init__(self, data):
         super().__init__(data)
-        self.name, devtag = split_image(data['name'])
+        self.name, devtag = windlass.tools.split_image(data['name'])
         if not self.version:
             self.version = devtag
+
+        self.client = from_env(version='auto')
 
     def pull_image(self, remoteimage, imagename, tag):
         """Pull the remoteimage down
 
         And tag it with the imagename and tag.
         """
-        docker = from_env(version='auto')
         logging.info("%s: Pulling image from %s", imagename, remoteimage)
 
-        output = docker.api.pull(remoteimage, stream=True)
+        output = self.client.api.pull(remoteimage, stream=True)
         check_docker_stream(output, imagename)
-        docker.api.tag(remoteimage, imagename, tag)
+        self.client.api.tag(remoteimage, imagename, tag)
 
-        image = docker.images.get('%s:%s' % (imagename, tag))
+        image = self.client.images.get('%s:%s' % (imagename, tag))
         return image
 
     def url(self, version=None, docker_image_registry=None):
@@ -174,7 +170,8 @@ class Image(windlass.api.Artifact):
 
         if 'remote' in image_def:
             self.pull_image(
-                image_def['remote'], *split_image(image_def['name']))
+                image_def['remote'],
+                *windlass.tools.split_image(image_def['name']))
         else:
             # TODO(kerrin) - repo should be relative the defining yaml file
             # and not the current working directory of the program. This change
@@ -191,11 +188,14 @@ class Image(windlass.api.Artifact):
                                         pull=True)
             logging.info('Get image %s completed', image_def['name'])
 
-    def download(self, docker_image_registry, version=None, **kwargs):
+    def download(self, version=None, docker_image_registry=None, **kwargs):
         if version is None and self.version is None:
             raise Exception('Must specify version of image to download.')
 
-        docker = from_env(version='auto')
+        if docker_image_registry is None:
+            raise Exception(
+                'docker_image_registry not set for image download. '
+                'Where should we download from?')
 
         tag = version or self.version
 
@@ -208,7 +208,7 @@ class Image(windlass.api.Artifact):
 
         if tag != self.version:
             # Tag the image with the version but without the repository
-            docker.api.tag(remoteimage, self.name, self.version)
+            self.client.api.tag(remoteimage, self.name, self.version)
 
     def upload(self, version=None, docker_image_registry=None,
                docker_user=None, docker_password=None,
@@ -225,8 +225,6 @@ class Image(windlass.api.Artifact):
         else:
             auth_config = None
 
-        docker = from_env(version='auto')
-
         # Local image name on the node
         local_fullname = self.url(self.version)
 
@@ -237,11 +235,11 @@ class Image(windlass.api.Artifact):
 
         try:
             if docker_image_registry:
-                docker.api.tag(local_fullname, upload_name, upload_tag)
+                self.client.api.tag(local_fullname, upload_name, upload_tag)
             push_image(
                 self.name, upload_name, upload_tag, auth_config=auth_config)
         finally:
             if docker_image_registry:
-                docker.api.remove_image(fullname)
+                self.client.api.remove_image(fullname)
 
         logging.info('%s: Successfully pushed', self.name)

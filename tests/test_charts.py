@@ -17,6 +17,7 @@
 import docker
 import windlass.charts
 import windlass.images
+import windlass.tools
 import git
 import io
 import os
@@ -58,7 +59,7 @@ class TestCharts(testtools.TestCase):
             user=os.getuid(),
             volumes={self.tempdir.name: {'bind': self.tempdir.name}},
             working_dir=self.repodir,
-            environment=windlass.images.load_proxy())
+            environment=windlass.tools.load_proxy())
 
         products = yaml.load(
             open(os.path.join(self.repodir, 'products/test-chart.yml')))
