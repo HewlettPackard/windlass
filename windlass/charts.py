@@ -78,7 +78,7 @@ class Chart(windlass.api.Artifact):
             os.path.join(charts_url, chart_name),
             verify='/etc/ssl/certs')
         if resp.status_code != 200:
-            raise Exception(
+            raise windlass.api.RetryableFailure(
                 'Failed to download chart %s' % chart_name)
 
         # Save the chart with the version and don't try and package
@@ -179,6 +179,7 @@ class Chart(windlass.api.Artifact):
         # location of the chart sources will be required for this
         # to work.
         local_version = self.version or self.get_local_version()
+        local_chart_name = self.get_chart_name(local_version)
 
         # Version to upload package as.
         upload_version = version or self.version
@@ -192,21 +193,21 @@ class Chart(windlass.api.Artifact):
                 local_version, upload_version,
                 registry=docker_image_registry)
         else:  # No version deploy the local development version
-            local_chart_name = self.get_chart_name(local_version)
             data = open(local_chart_name, 'rb').read()
 
         logging.info('%s: Pushing chart as %s' % (
             self.name, upload_chart_name))
 
         auth = requests.auth.HTTPBasicAuth(docker_user, docker_password)
+        dest_url = os.path.join(charts_url, upload_chart_name)
         resp = requests.put(
-            os.path.join(charts_url, upload_chart_name),
+            dest_url,
             data=data,
             auth=auth,
             verify='/etc/ssl/certs')
         if resp.status_code != 201:
-            raise Exception(
-                'Failed (status: %d) to upload %s' % (
-                    resp.status_code, upload_chart_name))
+            raise windlass.api.RetryableFailure(
+                'Failed (status: %d) to upload %s to %s' % (
+                    resp.status_code, local_chart_name, dest_url))
 
         logging.info('%s: Successfully pushed chart' % self.name)

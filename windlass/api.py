@@ -1,3 +1,4 @@
+
 #
 # (c) Copyright 2017 Hewlett Packard Enterprise Development LP
 #
@@ -21,6 +22,7 @@ import multiprocessing
 import os.path
 import shutil
 import tempfile
+import time
 import urllib.parse
 import yaml
 
@@ -191,6 +193,14 @@ class Artifacts(object):
             yield item
 
 
+class RetryableFailure(Exception):
+    """Rasise this exception when you want to retry the task
+
+    This will retry and task a fix number of time with a small
+    time back off.
+    """
+
+
 class Windlass(object):
 
     def __init__(self, products_to_parse=[], artifacts=None):
@@ -199,6 +209,8 @@ class Windlass(object):
         else:
             self.artifacts = Artifacts(products_to_parse)
         self.failure_occured = multiprocessing.Event()
+        self.max_retries = 3
+        self.retry_backoff = 5
 
     def wait_for_procs(self):
         while True:
@@ -211,9 +223,25 @@ class Windlass(object):
             if len([p for p in self.procs if p.is_alive()]) == 0:
                 return True
 
-    def work(self, process, artifact, **kwargs):
+    def work(self, process, artifact, retry_count=0, **kwargs):
+        if retry_count > self.max_retries:
+            logging.error(
+                '%s: Maximum number of retries occurred (%d)' % (
+                    artifact.name, self.max_retries))
+            self.failure_occured.set()
+            return
+
+        # Update retry count
+        retry_count += 1
+
         try:
             process(artifact, **kwargs)
+        except RetryableFailure:
+            logging.exception(
+                '%s: problem occuried retrying, backing off %d seconds' % (
+                    artifact.name, self.retry_backoff))
+            time.sleep(self.retry_backoff)
+            return self.work(process, artifact, retry_count, **kwargs)
         except Exception:
             logging.exception(
                 'Processing image %s failed with exception', artifact.name)

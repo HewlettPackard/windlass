@@ -45,9 +45,9 @@ def check_docker_stream(stream, name):
                 logging.debug(msg)
                 last_msgs.append(msg)
         if 'error' in data:
-            logging.error("Error building image %s:%s" % (
+            logging.error("Error processing image %s:%s" % (
                 name, "\n".join(last_msgs)))
-            raise Exception('%s ERROR from docker: %s' % (
+            raise windlass.api.RetryableFailure('%s ERROR from docker: %s' % (
                 name, data['error']))
 
 
