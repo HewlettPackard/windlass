@@ -25,6 +25,7 @@ import urllib.parse
 import yaml
 
 DEFAULT_PRODUCT_FILES = [
+    'artifacts.yaml',
     'products/products.yml',
     'products/products.yaml',
     'products.yml',
