@@ -17,7 +17,6 @@
 
 import windlass.api
 
-
 from argparse import ArgumentParser
 import logging
 import os
@@ -30,7 +29,9 @@ def main():
     parser.add_argument('--no-parallel', action='store_true',
                         help='Windlass artifacts serially. This is '
                         'helpful for debugging')
-    parser.add_argument('products', default=[], type=str, nargs='*',
+    parser.add_argument('products',
+                        default=windlass.api.DEFAULT_PRODUCT_FILES,
+                        type=str, nargs='*',
                         help='List of products.')
 
     # Download or build

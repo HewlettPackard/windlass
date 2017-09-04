@@ -26,13 +26,14 @@ import time
 import urllib.parse
 import yaml
 
-DEFAULT_PRODUCT_FILES = [
-    'artifacts.yaml',
+DEPRECATED_PRODUCT_FILES = [
     'products/products.yml',
     'products/products.yaml',
     'products.yml',
     'products.yaml',
 ]
+
+DEFAULT_PRODUCT_FILES = ['artifacts.yaml'] + DEPRECATED_PRODUCT_FILES
 
 
 class Artifact(object):
@@ -109,7 +110,9 @@ class Artifact(object):
 
 class Artifacts(object):
 
-    def __init__(self, products_to_parse=DEFAULT_PRODUCT_FILES):
+    def __init__(self, products_to_parse=None):
+        if not products_to_parse:
+            products_to_parse = DEFAULT_PRODUCT_FILES
         self.data = {}
         self.tempdir = tempfile.mkdtemp()
 
@@ -122,7 +125,7 @@ class Artifacts(object):
         shutil.rmtree(self.tempdir)
 
     def load(self,
-             products_to_parse=DEFAULT_PRODUCT_FILES,
+             products_to_parse,
              repopath=None,
              **metadata):
         artifacts = []
@@ -133,6 +136,10 @@ class Artifacts(object):
                     'Products file %s does not exist, skipping' % (
                         product_file))
                 continue
+            if product_file in DEPRECATED_PRODUCT_FILES:
+                logging.warn('Please use "artifacts.yaml" as "%s" is '
+                             'deprecated and will be removed int future '
+                             'versions' % product_file)
 
             with open(product_file, 'r') as f:
                 product_def = yaml.load(f.read())
@@ -204,7 +211,7 @@ class RetryableFailure(Exception):
 
 class Windlass(object):
 
-    def __init__(self, products_to_parse=[], artifacts=None):
+    def __init__(self, products_to_parse=None, artifacts=None):
         if artifacts:
             self.artifacts = artifacts
         else:
