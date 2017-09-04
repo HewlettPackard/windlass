@@ -18,12 +18,13 @@ import windlass.charts
 import windlass.images
 import glob
 import importlib
-import logging
 import os.path
 import ruamel.yaml
 
 
 class Pins(object):
+
+    # default_pin_file
 
     def __init__(self, config, parent={}):
         self.config = config
@@ -36,13 +37,14 @@ class Pins(object):
     def pins_dir(self):
         return self.get_value('pins_dir', 'pins')
 
-    def get_pin_repo_file(self, repository):
+    def get_pin_file(self, repository, **kwargs):
         "Get name of pin file for this repository."
         return self.get_value(
-            'repo_file',
-            '{pins_dir}/{repository}.yaml').format(
+            'pin_file',
+            self.default_pin_file).format(
                 pins_dir=self.pins_dir,
-                repository=repository)
+                repository=repository,
+                **kwargs)
 
     def get_pins_files_globs(self, repodir=None):
         globs = self.get_value('pins_files_globs', '{pins_dir}/*.yaml')
@@ -77,12 +79,14 @@ class ImagePins(Pins):
         imageorg/imagename: version
     """
 
+    default_pin_file = '{pins_dir}/{repository}.yaml'
+
     def __init__(self, config, parent=None):
         super().__init__(config, parent)
         self.key = self.config.get('key', 'images')
 
     def write_pins(self, artifacts, version, repository, repodir):
-        pin_file = self.get_pin_repo_file(repository)
+        pin_file = self.get_pin_file(repository)
         full_pin_file = os.path.join(repodir, pin_file)
 
         preamble = ''
@@ -104,9 +108,15 @@ class ImagePins(Pins):
                 data = {}
 
         pins = data.get(self.key, {})
+        pins_set = False
         for artifact in artifacts:
             if isinstance(artifact, windlass.images.Image):
                 pins[artifact.name] = version
+                pins_set = True
+
+        if not pins_set:
+            return []
+
         data[self.key] = pins
 
         with open(full_pin_file, 'w') as fp:
@@ -137,11 +147,7 @@ class LandscapePins(Pins):
     From a directory
     """
 
-    def get_landscaper_file(self, repository, chartname, repodir=None):
-        return self.get_value('landscape_file').format(
-            pins_dir=self.pins_dir,
-            repository=repository,
-            chartname=chartname)
+    default_pin_file = '{pins_dir}/{name}.yaml'
 
     def write_pins(self, artifacts, version, repository, repodir):
         written_files = []
@@ -149,27 +155,48 @@ class LandscapePins(Pins):
             if not isinstance(artifact, windlass.charts.Chart):
                 continue
 
-            landscaper_file = self.get_landscaper_file(
-                repository, artifact.name, repodir)
+            pin_file = self.get_pin_file(repository, name=artifact.name)
+            full_pin_file = os.path.join(repodir, pin_file)
 
+            preamble = ''
             try:
                 data = ruamel.yaml.load(
-                    open(os.path.join(repodir, landscaper_file)),
-                    Loader=ruamel.yaml.RoundTripLoader)
+                    open(full_pin_file), Loader=ruamel.yaml.RoundTripLoader)
             except FileNotFoundError:
-                # Can we generate this file?
-                raise RuntimeError(
-                    'Landscape file %s does not exist.' % landscaper_file)
+                basedir = os.path.dirname(full_pin_file)
+                os.makedirs(basedir, exist_ok=True)
+                data = {}
+            else:
+                # This is an edge case in ruamel.yaml. Here we have
+                # a comment (like a copyright) but the yaml file is
+                # empty. In that case data is None and so we just
+                # write out the contents that are their already, and
+                # treat this as a empty data.
+                if data is None:
+                    preamble = open(full_pin_file).read()
+                    data = {}
 
-            chartname, chartversion = data['release']['chart'].split(':', 1)
+            # chartname may contain the name of the helm repository to find
+            # this artifact in.
+            if data and data.get('release', {}).get('chart', None) is not None:
+                chartname, _version = data['release']['chart'].split(':', 1)
+            else:
+                chartname = artifact.name
+
+            if data.get('name', None) is None:
+                data['name'] = artifact.name
+
+            if data.get('release', None) is None:
+                data['release'] = {}
 
             data['release']['chart'] = '%s:%s' % (chartname, version)
             data['release']['version'] = version
 
-            with open(os.path.join(repodir, landscaper_file), 'w') as fp:
+            with open(full_pin_file, 'w') as fp:
+                fp.write(preamble)
                 ruamel.yaml.dump(data, fp, Dumper=ruamel.yaml.RoundTripDumper)
 
-            written_files.append(landscaper_file)
+            written_files.append(pin_file)
 
         return written_files
 
@@ -178,7 +205,9 @@ class LandscapePins(Pins):
 
         for pin_file in self.iter_pin_files(repodir):
             data = ruamel.yaml.safe_load(open(pin_file))
-            release = data['release']
+            release = data and data.get('release', None)
+            if not release:
+                continue
             chart = release['chart']
             chart, version = chart.split(':', 1)
             chart_version = release.get('version', version)
@@ -186,8 +215,7 @@ class LandscapePins(Pins):
                 raise RuntimeError(
                     'Conflicting chart version in file %s' % pin_file)
 
-            helm_repo, chart_name = chart.split('/', 1)
-            logging.debug('Chart comes from helm repo: %s' % helm_repo)
+            chart_name = chart.split('/', 1)[-1]
 
             pins.append(
                 windlass.charts.Chart(dict(
@@ -226,14 +254,15 @@ def parse_configuration(repodir=None):
     configuration_data = ruamel.yaml.load(
         open(configuration), Loader=ruamel.yaml.RoundTripLoader)
 
-    for key, value in configuration_data.items():
+    configuration_pins = configuration_data.get('pins', {})
+    for key, value in configuration_pins.items():
         if isinstance(value, dict):
             if 'type' not in value:
                 raise RuntimeError(
                     'type of collection unknown. please specify it')
             pintype = value['type']
             pinclass = import_class(pintype)
-            pins = pinclass(configuration_data[key], configuration_data)
+            pins = pinclass(configuration_pins[key], configuration_pins)
             yield pins
 
 
@@ -249,5 +278,4 @@ def read_pins(repodir=None):
     pins = []
     for reader in parse_configuration(repodir):
         pins.extend(reader.read_pins(repodir))
-
     return pins
