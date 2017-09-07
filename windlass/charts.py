@@ -77,7 +77,7 @@ class Chart(windlass.api.Artifact):
 
         chart_name = self.get_chart_name(version or self.version)
         resp = requests.get(
-            os.path.join(charts_url, chart_name),
+            self.url(version or self.version, charts_url),
             verify='/etc/ssl/certs')
         if resp.status_code != 200:
             raise windlass.api.RetryableFailure(
@@ -94,6 +94,14 @@ class Chart(windlass.api.Artifact):
         # in the original Chart.yaml. The reason being that we
         # will need to recreate the values.yaml file as the
         # chart doesn't reference the same image going forward.
+
+    def url(self, version=None, charts_url=None, **kwargs):
+        chart_name = self.get_chart_name(version or self.version)
+
+        if charts_url:
+            return os.path.join(charts_url, chart_name)
+
+        return chart_name
 
     def package_chart(self, local_version, version=None, **kwargs):
         '''Package chart
@@ -188,7 +196,7 @@ class Chart(windlass.api.Artifact):
 
         # Version to upload package as.
         upload_version = version or self.version
-        upload_chart_name = self.get_chart_name(upload_version)
+        upload_chart_url = self.url(upload_version, charts_url)
 
         # Specified version is different to that on the filesystem. So
         # we need to package the chart with the new version and
@@ -201,18 +209,17 @@ class Chart(windlass.api.Artifact):
             data = open(local_chart_name, 'rb').read()
 
         logging.info('%s: Pushing chart as %s' % (
-            self.name, upload_chart_name))
+            self.name, upload_chart_url))
 
         auth = requests.auth.HTTPBasicAuth(docker_user, docker_password)
-        dest_url = os.path.join(charts_url, upload_chart_name)
         resp = requests.put(
-            dest_url,
+            upload_chart_url,
             data=data,
             auth=auth,
             verify='/etc/ssl/certs')
         if resp.status_code != 201:
             raise windlass.api.RetryableFailure(
-                'Failed (status: %d) to upload %s to %s' % (
-                    resp.status_code, local_chart_name, dest_url))
+                'Failed (status: %d) to upload %s' % (
+                    resp.status_code, upload_chart_url))
 
         logging.info('%s: Successfully pushed chart' % self.name)

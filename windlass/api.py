@@ -387,9 +387,12 @@ class Windlass(object):
             artifact.set_version(version)
 
     def list(self, version=None, type=None, **kwargs):
+        list_items = []
         for artifact in self.artifacts:
-            if type is not None and isinstance(artifact, type):
-                yield artifact.url(version, **kwargs)
+            if type is None or isinstance(artifact, type):
+                list_items.append(artifact.url(version, **kwargs))
+
+        return list_items
 
     def build(self):
         self.run(lambda artifact: artifact.build())
