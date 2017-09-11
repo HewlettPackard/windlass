@@ -54,6 +54,8 @@ pins:
     #
     # Default: ['{pins_dir}/**/*.yaml']
     #
+    pins_files_globs:
+      - '{pins_dir}/*.yaml'
 
     #
     # key: Key of dictionary in yaml file containing the image pins

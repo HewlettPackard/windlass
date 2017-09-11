@@ -24,7 +24,9 @@ import ruamel.yaml
 
 class Pins(object):
 
+    # Type specific defaults. Different for each subclass
     # default_pin_file
+    # default_pins_files_globs
 
     def __init__(self, config, parent={}):
         self.config = config
@@ -47,7 +49,8 @@ class Pins(object):
                 **kwargs)
 
     def get_pins_files_globs(self, repodir=None):
-        globs = self.get_value('pins_files_globs', '{pins_dir}/*.yaml')
+        globs = self.get_value(
+            'pins_files_globs', self.default_pins_files_globs)
         if not isinstance(globs, list):
             globs = [globs]
 
@@ -80,6 +83,7 @@ class ImagePins(Pins):
     """
 
     default_pin_file = '{pins_dir}/{repository}.yaml'
+    default_pins_files_globs = '{pins_dir}/**/*.yaml'
 
     def __init__(self, config, parent=None):
         super().__init__(config, parent)
@@ -148,6 +152,7 @@ class LandscapePins(Pins):
     """
 
     default_pin_file = '{pins_dir}/{name}.yaml'
+    default_pins_files_globs = '{pins_dir}/*.yaml'
 
     def write_pins(self, artifacts, version, repository, repodir):
         written_files = []
