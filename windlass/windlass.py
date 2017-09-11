@@ -16,6 +16,7 @@
 #
 
 import windlass.api
+import windlass.pins
 
 from argparse import ArgumentParser
 import logging
@@ -33,6 +34,9 @@ def main():
                         default=windlass.api.DEFAULT_PRODUCT_FILES,
                         type=str, nargs='*',
                         help='List of products.')
+    parser.add_argument('--product-integration-repo', type=str,
+                        help='''Integration repository containing a product-integration.yaml
+configuration''')
 
     # Download or build
     # - --build-only => build development artifacts
@@ -80,7 +84,13 @@ def main():
 
     windlass.api.setupLogging(ns.debug)
 
-    g = windlass.api.Windlass(ns.products)
+    # We have specified a product integration repository. Load all
+    # artifacts from the configuration in this repository.
+    if ns.product_integration_repo:
+        artifacts = windlass.pins.read_pins(ns.product_integration_repo)
+        g = windlass.api.Windlass(artifacts=artifacts)
+    else:
+        g = windlass.api.Windlass(ns.products)
 
     def process(artifact, **kwargs):
         # Optimize building and pushing to registry in one call
