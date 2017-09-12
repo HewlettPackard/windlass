@@ -62,17 +62,19 @@ configuration''')
 
     download_group = parser.add_argument_group('Download options')
     download_group.add_argument(
-        '--download-docker-registry',
-        default='registry.hub.docker.com',
+        '--download-docker-registry', action='append',
+        default=['registry.hub.docker.com'],
         help='Registry of images.')
     download_group.add_argument(
-        '--download-charts-url',
+        '--download-charts-url', action='append',
         help='Helm repositories.')
 
     push_group = parser.add_argument_group('Push options')
-    push_group.add_argument('--push-docker-registry',
+    push_group.add_argument('--push-docker-registry', action='append',
+                            default=[],
                             help='Registry to push images.')
-    push_group.add_argument('--push-charts-url',
+    push_group.add_argument('--push-charts-url', action='append',
+                            default=[],
                             help='Helm repositories.')
 
     parser.add_argument('--download-version', type=str,
@@ -81,6 +83,11 @@ configuration''')
                         help='Version to use for upload artifacts.')
 
     ns = parser.parse_args()
+
+    if len(ns.download_docker_registry) > 1:
+        ns.download_docker_registry = ns.download_docker_registry[1:]
+    if len(ns.download_charts_url) > 1:
+        ns.download_charts_url = ns.download_charts_url[1:]
 
     windlass.api.setupLogging(ns.debug)
 
