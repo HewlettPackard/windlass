@@ -17,6 +17,10 @@
 
 images:
 
-  some/image2: 12345
+  # V2 format, which allows setting artifact metadata
+  some/image2:
+    version: 12345
+    devtag: 2
 
+  # Legacy format that just indicates the version of the image
   other/image2: 54321

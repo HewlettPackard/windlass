@@ -135,9 +135,11 @@ class Image(windlass.api.Artifact):
 
     def __init__(self, data):
         super().__init__(data)
-        self.name, devtag = windlass.tools.split_image(data['name'])
+        self.imagename, devtag = windlass.tools.split_image(data['name'])
         if not self.version:
             self.version = devtag
+
+        self.devtag = data.get('devtag', devtag)
 
         self.client = from_env(version='auto')
 
@@ -161,8 +163,8 @@ class Image(windlass.api.Artifact):
 
         if docker_image_registry:
             return '%s/%s:%s' % (
-                docker_image_registry.rstrip('/'), self.name, version)
-        return '%s:%s' % (self.name, version)
+                docker_image_registry.rstrip('/'), self.imagename, version)
+        return '%s:%s' % (self.imagename, version)
 
     def build(self):
         # How to pass in no-docker-cache and docker-pull arguments.
@@ -201,16 +203,20 @@ class Image(windlass.api.Artifact):
 
         tag = version or self.version
 
-        logging.info('Pinning image: %s to pin: %s' % (self.name, tag))
-        remoteimage = '%s/%s:%s' % (docker_image_registry, self.name, tag)
+        logging.info('Pinning image: %s to pin: %s' % (self.imagename, tag))
+        remoteimage = '%s/%s:%s' % (docker_image_registry, self.imagename, tag)
 
         # Pull the remoteimage down and tag it with the name of artifact
         # and the requested version
-        self.pull_image(remoteimage, self.name, tag)
+        self.pull_image(remoteimage, self.imagename, tag)
 
         if tag != self.version:
             # Tag the image with the version but without the repository
-            self.client.api.tag(remoteimage, self.name, self.version)
+            self.client.api.tag(remoteimage, self.imagename, self.version)
+
+        # Apply devtag to this image also. Note that not all artifacts
+        # support a devtag
+        self.client.api.tag(remoteimage, self.imagename, self.devtag)
 
     @windlass.api.retry()
     @windlass.api.fall_back('docker_image_registry', first_only=True)
@@ -234,12 +240,14 @@ class Image(windlass.api.Artifact):
 
         # Upload image with this tag
         upload_tag = version or self.version
-        upload_name = '%s/%s' % (docker_image_registry.rstrip('/'), self.name)
+        upload_name = '%s/%s' % (
+            docker_image_registry.rstrip('/'), self.imagename)
         fullname = '%s:%s' % (upload_name, upload_tag)
 
         try:
             if docker_image_registry:
                 self.client.api.tag(local_fullname, upload_name, upload_tag)
+            # The name is used just for debugging; logging and exception
             push_image(
                 self.name, upload_name, upload_tag, auth_config=auth_config)
         finally:

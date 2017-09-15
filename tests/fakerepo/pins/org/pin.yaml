@@ -13,9 +13,6 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 #
----
 
 images:
-
-  - name: testing/download:latest
-    remote: alpine:3.5
+  testing/download: 12345

@@ -115,7 +115,12 @@ class ImagePins(Pins):
         pins_set = False
         for artifact in artifacts:
             if isinstance(artifact, windlass.images.Image):
-                pins[artifact.name] = version
+                current_pins = pins.get(artifact.name, None)
+                if not isinstance(current_pins, dict):
+                    pins[artifact.name] = current_pins = {}
+                current_pins['version'] = version
+                if artifact.devtag != current_pins.get('devtag', 'latest'):
+                    current_pins['devtag'] = artifact.devtag
                 pins_set = True
 
         if not pins_set:
@@ -137,10 +142,16 @@ class ImagePins(Pins):
             if data:
                 images = data.get(self.key, {})
                 for image, version in images.items():
-                    pins.append(
-                        windlass.images.Image(dict(
-                            name=image,
-                            version=version)))
+                    if isinstance(version, dict):
+                        pins.append(
+                            windlass.images.Image(dict(
+                                name=image,
+                                **version)))
+                    else:
+                        pins.append(
+                            windlass.images.Image(dict(
+                                name=image,
+                                version=version)))
 
         return pins
 
