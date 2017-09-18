@@ -12,6 +12,8 @@ WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 License for the specific language governing permissions and limitations
 under the License.
 
+[TOC]
+
 # Windlass
 
 Windlass is a tool to fetch and manage artifacts required for running a
@@ -44,6 +46,22 @@ Windlass is designed so that we can meet the following workflows.
    Developers will download the artifacts and build only the artifacts that
    they are working on fixing or improving. They will then be able to deploy
    these artifacts to their local development environment.
+
+## Installing windlass
+
+Following requirements must be met:
+
+1.   python3 or newer installed on your machine
+
+2.   https_proxy set up if your machine is behind proxy
+
+Install windlass with following steps:
+
+1.   Create the python3 virtualenv `virtualenv -p python3 windlassvenv`
+
+2.   Load the virtualenv `source ./windlassvenv/bin/activate`
+
+3.   Install windlass from sources `pip install -e .`
 
 ## Running windlass
 
