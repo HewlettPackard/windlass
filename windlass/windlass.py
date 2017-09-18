@@ -82,7 +82,24 @@ configuration''')
     parser.add_argument('--push-version', type=str,
                         help='Version to use for upload artifacts.')
 
+    parser.add_argument('--workspace', type=str,
+                        help='''Declare where to find repositories. If a
+repository is located in the workspace then we don't try and check it out.
+
+If no workspace specified this defaults to the environmental variable
+WORKSPACE or else if that isn't present to your parent directory.''')
+
     ns = parser.parse_args()
+
+    # Setup ns.workspace if it is not specified.
+    # If --workspace is not specified then try the following:
+    # - environmental variable WORKSPACE - default in CI
+    # - the parent directory of current location
+    if not ns.workspace:
+        ns.workspace = os.environ.get('WORKSPACE', None)
+        if not ns.workspace:
+            ns.workspace = os.path.abspath(
+                os.path.join(os.getcwd(), os.path.pardir))
 
     if len(ns.download_docker_registry) > 1:
         ns.download_docker_registry = ns.download_docker_registry[1:]
@@ -97,7 +114,7 @@ configuration''')
         artifacts = windlass.pins.read_pins(ns.product_integration_repo)
         g = windlass.api.Windlass(artifacts=artifacts)
     else:
-        g = windlass.api.Windlass(ns.products)
+        g = windlass.api.Windlass(ns.products, workspace=ns.workspace)
 
     def process(artifact, **kwargs):
         # Optimize building and pushing to registry in one call

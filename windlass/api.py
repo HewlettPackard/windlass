@@ -111,7 +111,7 @@ class Artifact(object):
 
 class Artifacts(object):
 
-    def __init__(self, products_to_parse=None):
+    def __init__(self, products_to_parse=None, workspace=None):
         if not products_to_parse:
             products_to_parse = DEFAULT_PRODUCT_FILES
         self.data = {}
@@ -119,6 +119,7 @@ class Artifacts(object):
 
         self.items = self.load(
             products_to_parse,
+            workspace=workspace,
             # Default metadata to assign to arifacts
             repopath=os.path.abspath('.'))
 
@@ -127,6 +128,7 @@ class Artifacts(object):
 
     def load(self,
              products_to_parse,
+             workspace=None,
              repopath=None,
              **metadata):
         artifacts = []
@@ -160,29 +162,45 @@ class Artifacts(object):
                             path = urllib.parse.urlparse(repourl).path. \
                                 rsplit('.git', 1)[0]. \
                                 split('/', 1)[1]
-                            destpath = os.path.join(self.tempdir, path)
-                            if not os.path.exists(destpath):
-                                repo = git.Repo.clone_from(
-                                    repourl,
-                                    destpath,
-                                    depth=1,
-                                    single_branch=True)
+
+                            # See if we have the remote repository checked out
+                            # in the workspace, otherwise check it out.
+                            destpath = None
+                            if workspace:
+                                local_dev_path = os.path.join(
+                                    workspace,
+                                    path.split('/', 1).pop())
+
+                                if os.path.exists(local_dev_path):
+                                    destpath = local_dev_path
+                            if not destpath:
+                                destpath = os.path.join(self.tempdir, path)
+                                if not os.path.exists(destpath):
+                                    git.Repo.clone_from(
+                                        repourl,
+                                        destpath,
+                                        depth=1,
+                                        single_branch=True)
 
                             items = self.load(
-                                map(lambda conf: os.path.join(
-                                    repo.working_dir, conf),
+                                map(
+                                    lambda conf: os.path.join(
+                                        destpath, conf),
                                     DEFAULT_PRODUCT_FILES),
                                 # Override default system metadata
-                                repopath=repo.working_dir,
+                                repopath=destpath,
                                 **metadata
                             )
 
                             nameditems = [
                                 item for item in items
                                 if item.name == artifact_def.get('name')]
-                            if len(nameditems) != 1:
+                            if not nameditems:
+                                raise Exception('Failed to find %s in %s' % (
+                                    artifact_def['name'], repourl))
+                            elif len(nameditems) > 1:
                                 raise Exception(
-                                    'Found %d artifacts called %s in %s' % (
+                                    'Found %d of %s in %s' % (
                                         len(nameditems),
                                         artifact_def['name'],
                                         repourl))
@@ -295,11 +313,11 @@ class fall_back(object):
 
 class Windlass(object):
 
-    def __init__(self, products_to_parse=None, artifacts=None):
+    def __init__(self, products_to_parse=None, artifacts=None, workspace=None):
         if artifacts:
             self.artifacts = artifacts
         else:
-            self.artifacts = Artifacts(products_to_parse)
+            self.artifacts = Artifacts(products_to_parse, workspace)
         self.failure_occured = multiprocessing.Event()
         self.max_retries = 3
         self.retry_backoff = 5
