@@ -168,3 +168,31 @@ class Test_E2E_FakeRepo(FakeRegistry):
 
         self.client.api.remove_image('testing/download:12345')
         self.client.api.remove_image('testing/download:latest')
+
+    def test_product_inteagrtion_repo(self):
+        # pull alpine:3.5
+        test_image_name = '127.0.0.1:%d/testing/download:12345' % (
+            self.registry_port)
+        self.client.images.pull('alpine:3.5')
+        self.client.api.tag('alpine:3.5', test_image_name)
+        self.client.images.push(test_image_name)
+        self.client.api.remove_image(test_image_name)
+
+        self.client.containers.run(
+            'zing/windlass:latest',
+            ('--debug --download-docker-registry 127.0.0.1:%d '
+             '--download --no-push '
+             '--product-integration-repo %s') % (
+                 self.registry_port, self.repodir),
+            remove=True,
+            volumes={'/var/run/docker.sock': {'bind': '/var/run/docker.sock'},
+                     self.repodir: {'bind': self.repodir}},
+            working_dir=self.repodir,
+            environment=windlass.tools.load_proxy(),
+            )
+
+        self.client.images.get('testing/download:12345')
+        self.client.images.get('testing/download:latest')
+
+        self.client.api.remove_image('testing/download:12345')
+        self.client.api.remove_image('testing/download:latest')

@@ -52,9 +52,11 @@ class TestPins(testtools.TestCase):
         self.assertEqual(pins['some/image2'], 12345)
         self.assertIsInstance(
             artifact_types['some/image2'], windlass.images.Image)
+        self.assertEqual(artifact_types['some/image2'].devtag, 2)
         self.assertEqual(pins['other/image2'], 54321)
         self.assertIsInstance(
             artifact_types['other/image2'], windlass.images.Image)
+        self.assertEqual(artifact_types['other/image2'].devtag, 'latest')
 
         # Charts
         self.assertEqual(pins['example1'], '0.0.1')
@@ -122,6 +124,5 @@ class TestPins(testtools.TestCase):
 
         data = yaml.safe_load(
             open(os.path.join(self.repodir, 'image_pins/testing1.yaml')))
-        self.assertEqual(data['images'], {
-            'some/image': '1.0.0',
-            'other/image': 54321})
+        self.assertEqual(data['images']['some/image'], {'version': '1.0.0'})
+        self.assertEqual(data['images']['other/image'], 54321)
