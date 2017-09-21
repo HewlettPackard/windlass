@@ -7,14 +7,14 @@
 certifi==2017.7.27.1      # via requests
 chardet==3.0.4            # via requests
 docker-pycreds==0.2.1     # via docker
-docker==2.5.0
+docker==2.5.1
 gitdb2==2.0.2             # via gitpython
 gitpython==2.1.5
 idna==2.6                 # via requests
 pyyaml==3.12
 requests==2.18.4          # via docker
-ruamel.yaml==0.15.31
-six==1.10.0               # via docker, docker-pycreds, websocket-client
+ruamel.yaml==0.15.34
+six==1.11.0               # via docker, docker-pycreds, websocket-client
 smmap2==2.0.3             # via gitdb2
 urllib3==1.22             # via requests
 websocket-client==0.44.0  # via docker
