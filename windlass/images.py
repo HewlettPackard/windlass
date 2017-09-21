@@ -157,7 +157,7 @@ class Image(windlass.api.Artifact):
         image = self.client.images.get('%s:%s' % (imagename, tag))
         return image
 
-    def url(self, version=None, docker_image_registry=None):
+    def url(self, version=None, docker_image_registry=None, **kwargs):
         if version is None:
             version = self.version
 

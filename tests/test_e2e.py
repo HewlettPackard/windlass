@@ -53,6 +53,21 @@ class FakeRegistry(testtools.TestCase):
         self.registry.remove()
 
 
+class FakeWindlassObject(testtools.TestCase):
+
+    def test_list(self):
+        artifacts = [
+            windlass.charts.Chart(dict(
+                name='example1')),
+            windlass.images.Image(dict(
+                name='some/image')),
+        ]
+        g = windlass.api.Windlass(artifacts=artifacts)
+        urls = g.list(version='0.0.0-sha1')
+        self.assertEqual(
+            urls, ['example1-0.0.0-sha1.tgz', 'some/image:0.0.0-sha1'])
+
+
 class Test_E2E_FakeRepo(FakeRegistry):
 
     @classmethod
@@ -77,7 +92,7 @@ class Test_E2E_FakeRepo(FakeRegistry):
                      self.repodir: {'bind': self.repodir}},
             working_dir=self.repodir,
             environment=windlass.tools.load_proxy(),
-            )
+        )
         # TODO(kerrin) disable partial image until we recognize remote urls
         # self.check_proper_image_build('partial')
         self.check_proper_image_build('full')
@@ -120,13 +135,13 @@ class Test_E2E_FakeRepo(FakeRegistry):
              '--push-version=12345 '
              '%s/products/test.yml') % (
                  self.registry_port, self.repodir
-                ),
+            ),
             remove=True,
             volumes={'/var/run/docker.sock': {'bind': '/var/run/docker.sock'},
                      self.repodir: {'bind': self.repodir}},
             working_dir=self.repodir,
             environment=windlass.tools.load_proxy(),
-            )
+        )
 
         fullimagename = '127.0.0.1:%s/fakerepofull:12345' % (
             self.registry_port)
@@ -161,7 +176,7 @@ class Test_E2E_FakeRepo(FakeRegistry):
                      self.repodir: {'bind': self.repodir}},
             working_dir=self.repodir,
             environment=windlass.tools.load_proxy(),
-            )
+        )
 
         self.client.images.get('testing/download:12345')
         self.client.images.get('testing/download:latest')
@@ -189,7 +204,7 @@ class Test_E2E_FakeRepo(FakeRegistry):
                      self.repodir: {'bind': self.repodir}},
             working_dir=self.repodir,
             environment=windlass.tools.load_proxy(),
-            )
+        )
 
         self.client.images.get('testing/download:12345')
         self.client.images.get('testing/download:latest')
