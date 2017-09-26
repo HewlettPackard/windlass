@@ -260,7 +260,7 @@ def import_class(class_string):
         return globals()[class_name]
 
 
-def parse_configuration(repodir=None):
+def read_configuration(repodir=None):
     configuration = 'product-integration.yaml'
     if repodir:
         configuration = os.path.join(repodir, configuration)
@@ -270,6 +270,11 @@ def parse_configuration(repodir=None):
     configuration_data = ruamel.yaml.load(
         open(configuration), Loader=ruamel.yaml.RoundTripLoader)
 
+    return configuration_data
+
+
+def parse_configuration_pins(repodir=None):
+    configuration_data = read_configuration(repodir)
     configuration_pins = configuration_data.get('pins', {})
     for key, value in configuration_pins.items():
         if isinstance(value, dict):
@@ -284,7 +289,7 @@ def parse_configuration(repodir=None):
 
 def write_pins(artifacts, version, repository, repodir=None):
     written_files = []
-    for pins in parse_configuration(repodir):
+    for pins in parse_configuration_pins(repodir):
         written_files.extend(
             pins.write_pins(artifacts, version, repository, repodir))
     return written_files
@@ -292,6 +297,6 @@ def write_pins(artifacts, version, repository, repodir=None):
 
 def read_pins(repodir=None):
     pins = []
-    for reader in parse_configuration(repodir):
+    for reader in parse_configuration_pins(repodir):
         pins.extend(reader.read_pins(repodir))
     return pins
