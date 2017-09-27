@@ -265,7 +265,7 @@ def read_configuration(repodir=None):
     if repodir:
         configuration = os.path.join(repodir, configuration)
     if not os.path.exists(configuration):
-        raise RuntimeError('No configuration file')
+        raise RuntimeError('%s does not exist' % (configuration))
 
     configuration_data = ruamel.yaml.load(
         open(configuration), Loader=ruamel.yaml.RoundTripLoader)
