@@ -68,6 +68,8 @@ configuration''')
     download_group.add_argument(
         '--download-charts-url', action='append',
         help='Helm repositories.')
+    download_group.add_argument(
+        '--download-generic-url', action='append')
 
     push_group = parser.add_argument_group('Push options')
     push_group.add_argument('--push-docker-registry', action='append',
@@ -76,6 +78,9 @@ configuration''')
     push_group.add_argument('--push-charts-url', action='append',
                             default=[],
                             help='Helm repositories.')
+    push_group.add_argument('--push-generic-url', action='append',
+                            default=[],
+                            help='Generic artifact repositories')
 
     parser.add_argument('--download-version', type=str,
                         help='Specify version of artifacts.')
@@ -124,6 +129,7 @@ WORKSPACE or else if that isn't present to your parent directory.''')
                     version=ns.download_version,
                     docker_image_registry=ns.download_docker_registry,
                     charts_url=ns.download_charts_url,
+                    generic_url=ns.download_generic_url,
                     **kwargs)
             else:
                 artifact.build()
@@ -134,6 +140,7 @@ WORKSPACE or else if that isn't present to your parent directory.''')
                     version=ns.push_version,
                     docker_image_registry=ns.push_docker_registry,
                     charts_url=ns.push_charts_url,
+                    generic_url=ns.push_generic_url,
                     **kwargs)
 
     docker_user = os.environ.get('DOCKER_USER', None)

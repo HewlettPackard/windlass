@@ -15,5 +15,6 @@
 #
 
 # register types
-import windlass.charts  # noqa
-import windlass.images  # noqa
+import windlass.charts   # noqa
+import windlass.generic  # noqa
+import windlass.images   # noqa
