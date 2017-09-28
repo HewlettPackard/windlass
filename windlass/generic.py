@@ -62,14 +62,16 @@ class Generic(windlass.api.Artifact):
                 artifact_name = item['uri'].split('/')[-1]
                 if fnmatch.fnmatch(artifact_name, self.data.get('filename')):
                     return item['uri']
-            raise Exception('Could not find matching artifact')
+
+            msg = 'Could not find artifact version %s in %s' % (version, repo)
+            raise Exception(msg)
         if generic_url:
             return os.path.join(generic_url, artifact_name)
 
         return self.get_filename()
 
     @windlass.api.retry()
-    @windlass.api.fall_back('generic_url', first_only=True)
+    @windlass.api.fall_back('generic_url')
     def download(self,
                  version=None,
                  generic_url=None,

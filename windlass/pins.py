@@ -15,6 +15,7 @@
 #
 
 import windlass.charts
+import windlass.generic
 import windlass.images
 import glob
 import importlib
@@ -213,7 +214,6 @@ class LandscapePins(Pins):
                 ruamel.yaml.dump(data, fp, Dumper=ruamel.yaml.RoundTripDumper)
 
             written_files.append(pin_file)
-
         return written_files
 
     def read_pins(self, repodir=None):
@@ -238,6 +238,85 @@ class LandscapePins(Pins):
                     name=chart_name,
                     version=version)))
 
+        return pins
+
+
+class GenericPins(Pins):
+    """Manage directory of files that pin docker images
+
+    The format of the files is:
+
+      generic:
+        {artifactname}:
+            version: {version}
+            filename: {filename}
+    """
+
+    default_pin_file = '{pins_dir}/{repository}.yaml'
+    default_pins_files_globs = '{pins_dir}/**/*.yaml'
+
+    def __init__(self, config, parent=None):
+        super().__init__(config, parent)
+        self.key = self.config.get('key', 'generic')
+
+    def write_pins(self, artifacts, version, repository, repodir):
+        pin_file = self.get_pin_file(repository)
+        full_pin_file = os.path.join(repodir, pin_file)
+
+        preamble = ''
+        try:
+            data = ruamel.yaml.load(
+                open(full_pin_file), Loader=ruamel.yaml.RoundTripLoader)
+        except FileNotFoundError:
+            basedir = os.path.dirname(full_pin_file)
+            os.makedirs(basedir, exist_ok=True)
+            data = {}
+        else:
+            # This is an edge case in ruamel.yaml. Here we have
+            # a comment (like a copyright) but the yaml file is
+            # empty. In that case data is None and so we just
+            # write out the contents that are their already, and
+            # treat this as a empty data.
+            if data is None:
+                preamble = open(full_pin_file).read()
+                data = {}
+
+        pins = data.get(self.key, {})
+        pins_set = False
+        for artifact in artifacts:
+            if isinstance(artifact, windlass.generic.Generic):
+                current_pins = pins.get(artifact.name, {})
+
+                current_pins['version'] = version
+                current_pins['filename'] = artifact.get_filename()
+
+                pins_set = True
+                pins[artifact.name] = current_pins
+
+        if not pins_set:
+            return []
+
+        data[self.key] = pins
+
+        with open(full_pin_file, 'w') as fp:
+            fp.write(preamble)
+            ruamel.yaml.dump(data, fp, Dumper=ruamel.yaml.RoundTripDumper)
+
+        return [pin_file]
+
+    def read_pins(self, repodir=None):
+        pins = []
+
+        for pin_file in self.iter_pin_files(repodir):
+            data = ruamel.yaml.safe_load(open(pin_file))
+            if data:
+                images = data.get(self.key, {})
+                # content is dictionary with version and filename
+                for image, content in images.items():
+                        pins.append(
+                            windlass.generic.Generic(dict(
+                                name=image,
+                                **content)))
         return pins
 
 
