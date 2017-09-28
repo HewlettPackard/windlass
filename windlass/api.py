@@ -284,10 +284,11 @@ class fall_back(object):
             for key in self.keys:
                 fall_backs = kwargs.pop(key, [])
                 # if the argument isn't a list then convert it to a list
-                if isinstance(fall_backs, list):
-                    all_fall_backs.append(fall_backs)
-                else:
-                    all_fall_backs.append([fall_backs])
+                if fall_backs:
+                    if isinstance(fall_backs, list):
+                        all_fall_backs.append(fall_backs)
+                    else:
+                        all_fall_backs.append([fall_backs])
 
             if not all_fall_backs:
                 raise Exception('Missing arguments: %s' % ','.join(self.keys))
