@@ -240,7 +240,7 @@ class retry(object):
 
     def __call__(self, func):
         @functools.wraps(func)
-        def f(*args, **kwargs):
+        def retry_f(*args, **kwargs):
             artifact = args[0]
             for i in range(0, self.max_retries):
                 try:
@@ -255,7 +255,7 @@ class retry(object):
             raise Exception('%s: Maximum number of retries occurred (%d)' % (
                 artifact.name, self.max_retries))
 
-        return f
+        return retry_f
 
 
 class fall_back(object):
@@ -276,7 +276,7 @@ class fall_back(object):
 
     def __call__(self, func):
         @functools.wraps(func)
-        def f(*args, **kwargs):
+        def fall_back_f(*args, **kwargs):
             # We support falling back on multiple keys here. Collect them
             # all and call the decorated method with the i'th fall back
             # of each key
@@ -296,11 +296,12 @@ class fall_back(object):
             for count, fall_backs in enumerate(zip(*all_fall_backs)):
                 for idx, fall_back in enumerate(fall_backs):
                     kwargs[self.keys[idx]] = fall_back
+
                 try:
                     return func(*args, **kwargs)
                 except Exception:
-                    if self.first_only or count == len(fall_backs):
-                        # Failed to find artifact
+                    if self.first_only or count == len(all_fall_backs[0]):
+                        # Failed to find artifact so raise error
                         raise
                     # log error
 
@@ -309,7 +310,7 @@ class fall_back(object):
             raise Exception('Failed to find artifact %s, version: %s' % (
                 artifact.name, kwargs['version'] or artifact.version))
 
-        return f
+        return fall_back_f
 
 
 class Windlass(object):
