@@ -75,25 +75,28 @@ class Chart(windlass.api.Artifact):
             raise Exception(
                 'charts_url is not specified. Unable to download charts')
 
-        chart_name = self.get_chart_name(version or self.version)
+        chart_url = self.url(version or self.version, charts_url)
         resp = requests.get(
-            self.url(version or self.version, charts_url),
+            chart_url,
             verify='/etc/ssl/certs')
         if resp.status_code != 200:
             raise windlass.api.RetryableFailure(
-                'Failed to download chart %s' % chart_name)
+                'Failed to download chart %s' % chart_url)
 
         # Save the chart with the version and don't try and package
         # the chart as a usable chart under the local version.
         # The package_chart can't take a chart and package it under
         # the development version, like we do with images.
-        with open(chart_name, 'wb') as fp:
+        with open(os.path.basename(chart_url), 'wb') as fp:
             fp.write(resp.content)
 
         # We can't save the chart under the version specified
         # in the original Chart.yaml. The reason being that we
         # will need to recreate the values.yaml file as the
         # chart doesn't reference the same image going forward.
+
+        logging.info('%s: successfully downloaded from %s' % (
+            self.name, chart_url))
 
     def url(self, version=None, charts_url=None, **kwargs):
         chart_name = self.get_chart_name(version or self.version)
@@ -211,15 +214,22 @@ class Chart(windlass.api.Artifact):
         logging.info('%s: Pushing chart as %s' % (
             self.name, upload_chart_url))
 
-        auth = requests.auth.HTTPBasicAuth(docker_user, docker_password)
-        resp = requests.put(
-            upload_chart_url,
-            data=data,
-            auth=auth,
-            verify='/etc/ssl/certs')
-        if resp.status_code != 201:
-            raise windlass.api.RetryableFailure(
-                'Failed (status: %d) to upload %s' % (
-                    resp.status_code, upload_chart_url))
+        status_resp = requests.head(upload_chart_url, verify='/etc/ssl/certs')
+        if status_resp.status_code == 200:
+            # Chart already exists so don't try and upload it again
+            logging.info('%s: Chart already exists at %s' % (
+                self.name, upload_chart_url))
+        else:
+            # Artifact does not exist, push it up.
+            auth = requests.auth.HTTPBasicAuth(docker_user, docker_password)
+            resp = requests.put(
+                upload_chart_url,
+                data=data,
+                auth=auth,
+                verify='/etc/ssl/certs')
+            if resp.status_code != 201:
+                raise windlass.api.RetryableFailure(
+                    'Failed (status: %d) to upload %s' % (
+                        resp.status_code, upload_chart_url))
 
-        logging.info('%s: Successfully pushed chart' % self.name)
+            logging.info('%s: Successfully pushed chart' % self.name)

@@ -300,6 +300,12 @@ class fall_back(object):
                 try:
                     return func(*args, **kwargs)
                 except Exception:
+                    logging.debug(
+                        'Error getting %s, falling back to next repository' % (
+                            args[0].name),
+                        exc_info=True,
+                    )
+
                     if self.first_only or count == len(all_fall_backs[0]):
                         # Failed to find artifact so raise error
                         raise
