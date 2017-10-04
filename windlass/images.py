@@ -19,15 +19,17 @@ import windlass.api
 import windlass.tools
 from git import Repo
 import logging
+import multiprocessing
 import os
 
 import yaml
 
 
-def check_docker_stream(stream, name):
+def check_docker_stream(stream):
     # Read output from docker command and raise exception
     # if docker hit an error processing the command.
     # Also log messages if debugging is turned on.
+    name = multiprocessing.current_process().name
     last_msgs = []
     for line in stream:
         if not line:
@@ -51,7 +53,8 @@ def check_docker_stream(stream, name):
                 name, data['error']))
 
 
-def push_image(name, imagename, push_tag='latest', auth_config=None):
+def push_image(imagename, push_tag='latest', auth_config=None):
+    name = multiprocessing.current_process().name
     docker = from_env(version='auto')
     logging.info('%s: Pushing as %s:%s', name, imagename, push_tag)
 
@@ -61,7 +64,7 @@ def push_image(name, imagename, push_tag='latest', auth_config=None):
     output = docker.images.push(
         imagename, push_tag, auth_config=auth_config,
         stream=True)
-    check_docker_stream(output, name)
+    check_docker_stream(output)
     return True
 
 
@@ -151,7 +154,7 @@ class Image(windlass.api.Artifact):
         logging.info("%s: Pulling image from %s", imagename, remoteimage)
 
         output = self.client.api.pull(remoteimage, stream=True)
-        check_docker_stream(output, imagename)
+        check_docker_stream(output)
         self.client.api.tag(remoteimage, imagename, tag)
 
         image = self.client.images.get('%s:%s' % (imagename, tag))
@@ -247,9 +250,7 @@ class Image(windlass.api.Artifact):
         try:
             if docker_image_registry:
                 self.client.api.tag(local_fullname, upload_name, upload_tag)
-            # The name is used just for debugging; logging and exception
-            push_image(
-                self.name, upload_name, upload_tag, auth_config=auth_config)
+            push_image(upload_name, upload_tag, auth_config=auth_config)
         finally:
             if docker_image_registry:
                 self.client.api.remove_image(fullname)
