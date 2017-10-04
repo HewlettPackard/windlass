@@ -25,6 +25,7 @@ import shutil
 import tempfile
 import time
 import urllib.parse
+import urllib3.exceptions
 import yaml
 
 DEPRECATED_PRODUCT_FILES = [
@@ -245,7 +246,7 @@ class retry(object):
             for i in range(0, self.max_retries):
                 try:
                     return func(*args, **kwargs)
-                except RetryableFailure:
+                except (urllib3.exceptions.ReadTimeoutError, RetryableFailure):
                     logging.exception(
                         '%s: problem occuried retrying, backing '
                         'off %d seconds' % (
