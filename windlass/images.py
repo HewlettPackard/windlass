@@ -226,6 +226,16 @@ class Image(windlass.api.Artifact):
     def upload(self, version=None, docker_image_registry=None,
                docker_user=None, docker_password=None,
                **kwargs):
+        if 'remote' in kwargs:
+            try:
+                return kwargs['remote'].upload_docker(
+                    self.imagename + ':' + self.version, upload_tag=version
+                )
+            except windlass.api.NoValidRemoteError:
+                # Fall thru to old upload code.
+                logging.debug(
+                    "No docker endpoint configured for %s", kwargs['remote']
+                )
         if docker_image_registry is None:
             raise Exception(
                 'docker_image_registry not set for image upload. '

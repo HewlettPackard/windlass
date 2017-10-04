@@ -221,6 +221,28 @@ class Artifacts(object):
             yield item
 
 
+class Remote(object):
+    def __init__(self):
+        pass
+
+    def upload_docker(self, image_name, upload_name=None, upload_tag=None):
+        """Upload docker image
+
+        """
+        raise NotImplementedError('Docker upload not implemented')
+
+    def download_docker(self, image_name):
+        """Upload docker image
+
+        """
+        raise NotImplementedError('Docker download not implemented')
+
+
+class NoValidRemoteError(Exception):
+    """Indicate that a remote upload endpoint is not configured"""
+    pass
+
+
 class RetryableFailure(Exception):
     """Rasise this exception when you want to retry the task
 
