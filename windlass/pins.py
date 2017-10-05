@@ -115,7 +115,7 @@ class ImagePins(Pins):
         super().__init__(config, parent)
         self.key = self.config.get('key', 'images')
 
-    def write_pins(self, artifacts, version, repository, repodir):
+    def write_pins(self, artifacts, version, repository, repodir, metadata={}):
         pin_file = self.get_pin_file(repository)
         full_pin_file = os.path.join(repodir, pin_file)
 
@@ -142,11 +142,19 @@ class ImagePins(Pins):
         for artifact in self.iter_artifacts(
                 artifacts, artifacttype=windlass.images.Image):
             current_pins = pins.get(artifact.imagename, None)
+
             if not isinstance(current_pins, dict):
                 pins[artifact.imagename] = current_pins = {}
             current_pins['version'] = version
             if artifact.devtag != current_pins.get('devtag', 'latest'):
                 current_pins['devtag'] = artifact.devtag
+
+            # Update metadata
+            if metadata:
+                if 'zing-metadata' not in current_pins:
+                    current_pins['zing-metadata'] = {}
+                current_pins['zing-metadata'].update(metadata)
+
             pins_set = True
 
         if not pins_set:
@@ -191,7 +199,7 @@ class LandscapePins(Pins):
     default_pin_file = '{pins_dir}/{name}.yaml'
     default_pins_files_globs = '{pins_dir}/*.yaml'
 
-    def write_pins(self, artifacts, version, repository, repodir):
+    def write_pins(self, artifacts, version, repository, repodir, metadata={}):
         written_files = []
         for artifact in self.iter_artifacts(
                 artifacts, artifacttype=windlass.charts.Chart):
@@ -231,6 +239,12 @@ class LandscapePins(Pins):
 
             data['release']['chart'] = '%s:%s' % (chartname, version)
             data['release']['version'] = version
+
+            # Store metadata here.
+            if metadata:
+                if 'zing-metadata' not in data:
+                    data['zing-metadata'] = {}
+                data['zing-metadata'].update(metadata)
 
             with open(full_pin_file, 'w') as fp:
                 fp.write(preamble)
@@ -282,7 +296,7 @@ class GenericPins(Pins):
         super().__init__(config, parent)
         self.key = self.config.get('key', 'generic')
 
-    def write_pins(self, artifacts, version, repository, repodir):
+    def write_pins(self, artifacts, version, repository, repodir, metadata={}):
         pin_file = self.get_pin_file(repository)
         full_pin_file = os.path.join(repodir, pin_file)
 
@@ -312,6 +326,12 @@ class GenericPins(Pins):
 
             current_pins['version'] = version
             current_pins['filename'] = artifact.get_filename()
+
+            # Update metadata
+            if metadata:
+                if 'zing-metadata' not in current_pins:
+                    current_pins['zing-metadata'] = {}
+                current_pins['zing-metadata'].update(metadata)
 
             pins_set = True
             pins[artifact.name] = current_pins
@@ -389,11 +409,11 @@ def parse_configuration_pins(repodir=None):
             yield pins
 
 
-def write_pins(artifacts, version, repository, repodir=None):
+def write_pins(artifacts, version, repository, repodir=None, metadata={}):
     written_files = []
     for pins in parse_configuration_pins(repodir):
         written_files.extend(
-            pins.write_pins(artifacts, version, repository, repodir))
+            pins.write_pins(artifacts, version, repository, repodir, metadata))
     return written_files
 
 

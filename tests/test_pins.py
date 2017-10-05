@@ -56,6 +56,9 @@ class TestPins(testtools.TestCase):
         self.assertIsInstance(
             artifact_types['some/image2'], windlass.images.Image)
         self.assertEqual(artifact_types['some/image2'].devtag, 2)
+        self.assertEqual(
+            artifact_types['some/image2'].data['zing-metadata'],
+            {'stuff': 112233})
         self.assertEqual(pins['other/image2'], 54321)
         self.assertIsInstance(
             artifact_types['other/image2'], windlass.images.Image)
@@ -146,10 +149,14 @@ class TestPins(testtools.TestCase):
                 name='some/image'))
         ]
         updated_files = windlass.pins.write_pins(
-            artifacts, '1.0.0', 'testing1', self.repodir)
+            artifacts, '1.0.0', 'testing1', self.repodir, metadata={
+                'item': 'value'
+            })
         self.assertEqual(updated_files, ['image_pins/testing1.yaml'])
 
         data = yaml.safe_load(
             open(os.path.join(self.repodir, 'image_pins/testing1.yaml')))
-        self.assertEqual(data['images']['some/image'], {'version': '1.0.0'})
+        self.assertEqual(
+            data['images']['some/image'],
+            {'version': '1.0.0', 'zing-metadata': {'item': 'value'}})
         self.assertEqual(data['images']['other/image'], 54321)
