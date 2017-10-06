@@ -379,3 +379,42 @@ def read_pins(repodir=None):
     for reader in parse_configuration_pins(repodir):
         pins.extend(reader.read_pins(repodir))
     return pins
+
+
+def diff_pins_dir(lhs_repo_dir, rhs_repo_dir):
+    lhs_pins = read_pins(lhs_repo_dir)
+    rhs_pins = read_pins(rhs_repo_dir)
+    return diff_pins(lhs_pins, rhs_pins)
+
+
+def diff_pins(lhs_pins, rhs_pins):
+
+    diff_pins = []
+    # Check for pins changes betweeen lhs and rhs
+    diff_pins.extend([
+        dict(
+            name=rh.name,
+            lhs=lh,
+            rhs=rh
+        ) for rh in rhs_pins for lh in lhs_pins
+        if rh.name == lh.name and rh.version != lh.version])
+
+    # Check for pins in rhs but not in lhs
+    for rh in rhs_pins:
+        if not any(lh.name == rh.name for lh in lhs_pins):
+            diff_pins.append(dict(
+                name=rh.name,
+                lhs=None,
+                rhs=rh,
+            ))
+
+    # Check for pins in lhs but not in rhs
+    for lh in lhs_pins:
+        if not any(rh.name == lh.name for rh in rhs_pins):
+            diff_pins.append(dict(
+                name=lh.name,
+                lhs=lh,
+                rhs=None
+            ))
+
+    return diff_pins

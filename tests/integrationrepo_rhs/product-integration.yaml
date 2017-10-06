@@ -1,0 +1,115 @@
+#
+# (c) Copyright 2017 Hewlett Packard Enterprise Development LP
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License. You may obtain
+# a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+#
+---
+
+#
+# List of images to promote
+#
+pins:
+  images:
+    #
+    # type tells us how this repository will manage pins.
+    #
+    # Depending on the software been used different integration
+    # repositories will want to manage that differently.
+    #
+    type: windlass.pins.ImagePins
+
+    #
+    # pins_dir: is the directory in the repository that
+    # contains the pins.
+    #
+    # This can feed into the default pins_files_globs
+    # which is '{pins_dir}/**/*.yaml'
+    #
+    # Defaults to 'pins'
+    #
+    pins_dir: image_pins
+
+    #
+    # pin_file: configures which file to write when we are
+    # updating a collection of pins.
+    #
+    # Default: '{pins_dir}/{repository}.yaml'
+    #
+
+    #
+    # pins_files_globs: Location of of image pins files
+    #
+    # Thsee files are yaml files that contain a dictionary
+    # of iamgename: imageversion
+    #
+    # Default: ['{pins_dir}/**/*.yaml']
+    #
+    pins_files_globs:
+      - '{pins_dir}/*.yaml'
+
+    #
+    # key: Key of dictionary in yaml file containing the image pins
+    #
+    # Default: images
+    #
+
+
+  #
+  # Collection of landscape files
+  #
+  landscape_files:
+    #
+    # type tells us how this repository will manage pins.
+    #
+    # Depending on the software been used different integration
+    # repositories will want to manage that differently.
+    #
+    type: LandscapePins
+
+    pins_dir: 'region1'
+
+    #
+    # pins_files_globs: Location of the landscaper files
+    #
+    # Defults: ['{pins_dir}/**/*.yaml']
+    #
+    pins_files_globs:
+      - 'region1/*.yaml'
+
+
+  landscape_region2:
+    #
+    # type tells us how this repository will manage pins.
+    #
+    # Depending on the software been used different integration
+    # repositories will want to manage that differently.
+    #
+    type: LandscapePins
+
+    pins_dir: 'region2'
+
+    #
+    # pin_file: This is different for Landscaper files then it
+    # is for images.
+    #
+    # Defaults: '{pins_dir}/{name}.yaml'
+    #
+    pin_file: '{pins_dir}/{name}.yaml'
+
+    #
+    # pins_files_globs: Location of the landscaper files
+    #
+    # Defults: ['{pins_dir}/**/*.yaml']
+    #
+    pins_files_globs:
+      - 'region2/*.yaml'

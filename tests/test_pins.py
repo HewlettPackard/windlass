@@ -31,7 +31,10 @@ class TestPins(testtools.TestCase):
         self.tempdir = tempfile.TemporaryDirectory()
         # self.repodir = self.tempdir.name
         self.repodir = os.path.join(self.tempdir.name, 'integrationrepo')
+        self.repodir_rhs = os.path.join(self.tempdir.name,
+                                        'integrationrepo_rhs')
         shutil.copytree('./tests/integrationrepo', self.repodir)
+        shutil.copytree('./tests/integrationrepo_rhs', self.repodir_rhs)
 
     def test_read_pins(self):
         artifacts = windlass.pins.read_pins(self.repodir)
@@ -61,6 +64,30 @@ class TestPins(testtools.TestCase):
         # Charts
         self.assertEqual(pins['example1'], '0.0.1')
         self.assertIsInstance(artifact_types['example1'], windlass.charts.Chart)
+
+    def test_diff_pins(self):
+        pins_lhs = windlass.pins.read_pins(self.repodir)
+        pins_rhs = windlass.pins.read_pins(self.repodir_rhs)
+        self.assertEqual(len(pins_lhs), 5)
+        self.assertEqual(len(pins_rhs), 5)
+
+        artifacts = windlass.pins.diff_pins_dir(self.repodir, self.repodir_rhs)
+
+        # deletes
+        n = [x['name'] for x in artifacts if x['lhs'] and not x['rhs']]
+        self.assertEqual(n, ['other/image'])
+
+        # adds
+        n = [x['name'] for x in artifacts if x['rhs'] and not x['lhs']]
+        self.assertEqual(n, ['some/newimage'])
+
+        # updates
+        n = [x for x in artifacts if x['rhs'] and x['lhs']]
+        sorted_updates = sorted(n, key=lambda k: k['name'])
+
+        self.assertEqual(sorted_updates[0]['name'], 'some/image')
+        self.assertEqual(sorted_updates[0]['lhs'].version, 12345)
+        self.assertEqual(sorted_updates[0]['rhs'].version, 12346)
 
     def test_write_chart_pins(self):
         artifacts = [
