@@ -16,12 +16,54 @@
 import base64
 import boto3
 import docker
+import functools
 import logging
 import os
+import time
 import urllib.parse
 
 import windlass.api
 import windlass.images
+
+# Set retry_backoff as a module-level variable to allow override for tests.
+global_retry_backoff = 5
+
+
+class remote_retry(object):
+    """Retry decorator for AWS operations
+
+    Accepts an exceptions list of exception classes to retry on, in addition
+    to the hard-coded ones.
+    """
+
+    def __init__(self, max_retries=3, retry_backoff=None, retry_on=None):
+        self.max_retries = max_retries
+        self.retry_backoff = retry_backoff or global_retry_backoff
+        # Set the exceptions to retry on - initialise with a hard-coded
+        # list and add custom ones.
+        self.retry_on = set([windlass.api.RetryableFailure])
+        if retry_on:
+            self.retry_on.update(retry_on)
+
+    def __call__(self, func):
+        @functools.wraps(func)
+        def retry_f(*args, **kwargs):
+            for i in range(0, self.max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    if not any(isinstance(e, r) for r in self.retry_on):
+                        raise
+                    logging.exception(
+                        '%s: problem occuried retrying, backing '
+                        'off %d seconds' % (
+                            func, self.retry_backoff))
+                    time.sleep(self.retry_backoff)
+
+            raise Exception('%s: Maximum number of retries occurred (%d)' % (
+                func, self.max_retries))
+
+        return retry_f
 
 
 class DockerConnector(object):
@@ -40,7 +82,7 @@ class DockerConnector(object):
         else:
             self.registry_list = registry_list
 
-    @windlass.api.retry()
+    @remote_retry()
     def upload(self, local_name, upload_name=None, upload_tag=None):
         dcli = docker.from_env(version='auto')
         auth_config = {'username': self.username, 'password': self.password}
@@ -75,7 +117,8 @@ class ECRConnector(DockerConnector):
     Upload is always to the first path, if specified.
     """
     def __init__(self, key_id, secret_key, region,
-                 path_prefixes=None, repo_policy=None):
+                 path_prefixes=None, repo_policy=None,
+                 test_ecrc=None):
         self.key_id = key_id
         self.secret_key = secret_key
         self.region = region
@@ -86,10 +129,14 @@ class ECRConnector(DockerConnector):
         else:
             self.path_prefixes = path_prefixes
         self.new_repo_policy = repo_policy
-        self.ecrc = boto3.client(
-            'ecr', aws_access_key_id=self.key_id,
-            aws_secret_access_key=self.secret_key, region_name=self.region,
-        )
+        # Allow for specifying a test ECR client, for running tests.
+        if test_ecrc:
+            self.ecrc = test_ecrc
+        else:
+            self.ecrc = boto3.client(
+                'ecr', aws_access_key_id=self.key_id,
+                aws_secret_access_key=self.secret_key, region_name=self.region,
+            )
         self.existing_repos = self._list_existing_repos()
         reg, user, passwd = self._docker_login()
         super().__init__([reg], user, passwd)
@@ -119,11 +166,26 @@ class ECRConnector(DockerConnector):
         return existing_repos
 
     def _create_repo_if_new(self, image_name):
-        if image_name not in self.existing_repos:
+        if image_name in self.existing_repos:
+            return
+
+        # The retry exception is defined within the client so declaring this
+        # embedded function in order to be able to wrap it.
+        @remote_retry(retry_on=[self.ecrc.exceptions.RepositoryNotFoundException])  # noqa
+        def _create_repo():
             logging.info("Creating new repository: %s", image_name)
-            self.ecrc.create_repository(repositoryName=image_name)
-            self.existing_repos.add(image_name)
+            try:
+                ret = self.ecrc.create_repository(repositoryName=image_name)
+                logging.info(
+                    "New repository uri: %s",
+                    ret['repository']['repositoryUri']
+                )
+            except self.ecrc.exceptions.RepositoryAlreadyExistsException:
+                logging.info("Repository %s already exists", image_name)
             self._set_repo_policy(image_name)
+
+        _create_repo()
+        self.existing_repos.add(image_name)
 
     def _set_repo_policy(self, repository_name):
         if self.new_repo_policy:
