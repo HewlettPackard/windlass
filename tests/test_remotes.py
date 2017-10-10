@@ -47,8 +47,7 @@ class TestECRConnector(testtools.TestCase):
         policy_stub = '{ "Statement": [{"Sid": "zing"}]}'
         self.stubber.add_response('get_authorization_token', auth_resp, {})
         self.connector = windlass.remotes.ECRConnector(
-            key_id='None', secret_key='None', region='None',
-            repo_policy=policy_stub, test_ecrc=tc,
+            creds=None, repo_policy=policy_stub, test_ecrc=tc,
         )
         # Set the retry backoff time to 0 to speed up tests.
         windlass.remotes.global_retry_backoff = 0
@@ -85,13 +84,17 @@ class TestECRConnector(testtools.TestCase):
     def test_retry_on_fail(self):
         image_name = 'my/new/image'
 
-        # First try - repo create succeeds but set policy fails.
+        # First try - repo create appears to succeed (but repository not
+        # created - perhaps still in progress), and set policy fails.
         self._stub_create_repository(image_name)
         self.stubber.add_client_error(
             'set_repository_policy', 'RepositoryNotFoundException'
         )
-        # Second try - both succeed this time.
-        self._stub_create_repository(image_name)
+        # Second try - repo create now fails (repository already exists),
+        # but set policy succeeds.
+        self.stubber.add_client_error(
+            'create_repository', 'RepositoryAlreadyExistsException'
+        )
         self._stub_set_repository_policy(image_name)
 
         self.connector._create_repo_if_new(image_name)

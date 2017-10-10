@@ -109,6 +109,30 @@ class Artifact(object):
         """
         raise NotImplementedError('upload not implemented')
 
+    def export_stream(self, version=None):
+        """Export an artifact to a stream object"""
+        raise NotImplementedError('export_stream not implemented')
+
+    def export(self, export_dir='.', export_name=None, version=None):
+        """Export an artifact to a single file.
+
+        If export_dir is set, the export file is stored there, otherwise it is
+        stored in the current directory.  If export_name is set it is used as
+        the name of the exported artifact.  Otherwise the export name is
+        generated from the internal artifact name.
+
+        Return the name of the export file (full path, including export_dir).
+        """
+        raise NotImplementedError('export not implemented')
+
+    def export_signable(self, export_dir='.', export_name=None, version=None):
+        """Export a signable representation of an artifact to a single file.
+
+        This may be the artifact itself (e.g. a chart tarball), or it may just
+        be some form of hash of the artifact.
+        """
+        return self.export(export_dir, export_name, version)
+
 
 class Artifacts(object):
 
@@ -487,4 +511,5 @@ class register_type(object):
 
     def __call__(self, cls):
         _products_registry[self.key] = cls
+        cls._type_str = self.key
         return cls
