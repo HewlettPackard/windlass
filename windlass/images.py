@@ -146,6 +146,11 @@ class Image(windlass.api.Artifact):
 
         self.client = from_env(version='auto')
 
+    def __str__(self):
+        return "windlass.image.Image(name=%s, version=%s)" % (
+            self.imagename, self.version
+        )
+
     def pull_image(self, remoteimage, imagename, tag):
         """Pull the remoteimage down
 
@@ -266,3 +271,41 @@ class Image(windlass.api.Artifact):
                 self.client.api.remove_image(fullname)
 
         logging.info('%s: Successfully pushed', self.name)
+
+    def export_stream(self, version=None):
+        img_name = self.name + ':' + self.version
+        img = self.client.images.get(img_name)
+        return img.save().stream()
+
+    def export(self, export_dir='.', export_name=None, version=None):
+        img_name = self.name + ':' + self.version
+        img = self.client.images.get(img_name)
+        if export_name is None:
+            ver = version or img.short_id[7:]
+            export_name = "%s-%s.tar" % (self.name, ver)
+        export_path = os.path.join(export_dir, export_name)
+        logging.debug("Exporting image %s to %s", img_name, export_path)
+
+        os.makedirs(os.path.dirname(export_path), exist_ok=True)
+        with open(export_path, 'wb') as f:
+            for chunk in self.export_stream():
+                f.write(chunk)
+        return export_path
+
+    def export_signable(self, export_dir='.', export_name=None, version=None):
+        """Write the image ID (sha256 hash) to the export file"""
+        img_name = self.name + ':' + self.version
+        img = self.client.images.get(img_name)
+
+        if export_name is None:
+            # img.short_id starts 'sha256:...' - strip the prefix.
+            ver = version or img.short_id[7:]
+            export_name = "%s-%s.id" % (self.name, ver)
+        export_path = os.path.join(export_dir, export_name)
+        logging.debug("Exporting image ID for %s to %s", img_name, export_path)
+
+        os.makedirs(os.path.dirname(export_path), exist_ok=True)
+        with open(export_path, 'w') as f:
+            f.write(img.id)
+
+        return export_path

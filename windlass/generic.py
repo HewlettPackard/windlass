@@ -32,6 +32,10 @@ class Generic(windlass.api.Artifact):
 
     Upload artifact
     """
+    def __str__(self):
+        return "windlass.generic.Generic(name=%s, filename=%s)" % (
+            self.name, self.get_filename()
+        )
 
     def get_filename(self):
         # Generic artifacts should be pinned to their filename so that we
@@ -125,3 +129,17 @@ class Generic(windlass.api.Artifact):
                     resp.status_code, upload_url))
 
         logging.info('%s: Successfully pushed artifact' % self.name)
+
+    def export_stream(self, version=None):
+        return open(self.get_filename(), 'r')
+
+    def export(self, export_dir='.', export_name=None, version=None):
+        if export_name is None:
+            export_name = os.path.basename(self.get_filename())
+        export_path = os.path.join(export_dir, export_name)
+        logging.debug(
+            "Exporting generic %s to %s", self.name, export_path
+        )
+        with open(export_path, 'w') as f:
+            f.write(self.export_stream().read())
+        return export_path

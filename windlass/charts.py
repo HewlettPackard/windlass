@@ -37,6 +37,10 @@ class Chart(windlass.api.Artifact):
 
     upload
     """
+    def __str__(self):
+        return "windlass.charts.Chart(name=%s)" % (
+            self.get_chart_name(self.version)
+        )
 
     def get_chart_dir(self):
         # The directory containing the chart must match the name of the chart.
@@ -233,3 +237,32 @@ class Chart(windlass.api.Artifact):
                         resp.status_code, upload_chart_url))
 
             logging.info('%s: Successfully pushed chart' % self.name)
+
+    def export_stream(self, version=None):
+        local_version = self.version or self.get_local_version()
+        stream_version = version or self.version or local_version
+
+        if stream_version == local_version:
+            local_chart_name = self.get_chart_name(local_version)
+            return open(local_chart_name, 'rb')
+        else:
+            cdata = self.package_chart(local_version, stream_version)
+            return io.BytesIO(cdata)
+
+    def export(self, export_dir='.', export_name=None, version=None):
+        local_version = self.version or self.get_local_version()
+        export_version = version or self.version or local_version
+
+        local_chart_name = self.get_chart_name(local_version)
+        if export_name is None:
+            export_name = self.get_chart_name(export_version)
+        export_path = os.path.join(export_dir, export_name)
+        logging.debug(
+            "Exporting chart %s to %s", local_chart_name, export_path
+        )
+        # Don't write if the exported chart would be the same as locally saved
+        # chart.
+        if os.path.abspath(export_path) != os.path.abspath(local_chart_name):
+            with open(export_path, 'wb') as f:
+                f.write(self.export_stream(export_version).read())
+        return export_path
