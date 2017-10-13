@@ -19,6 +19,7 @@ import windlass.generic
 import windlass.images
 import glob
 import importlib
+import logging
 import os.path
 import ruamel.yaml
 
@@ -73,6 +74,30 @@ class Pins(object):
             for pin_file in glob.glob(pin_files_glob):
                 yield pin_file
 
+    def iter_artifacts(self, artifacts, artifacttype=None):
+        ignore = self.config.get('ignore', [])
+        only = self.config.get('only', [])
+        if ignore and only:
+            raise Exception(
+                "Cannot specifiy 'only' and 'ignore' for %s" % (
+                    self.name))
+
+        for artifact in artifacts:
+            if artifacttype is not None \
+               and not isinstance(artifact, artifacttype):
+                logging.debug('Skipping artifact of wrong type %s (%s)' % (
+                    artifact.name, artifacttype))
+                continue
+
+            if artifact.name in ignore:
+                logging.debug('Skipping ignored artifact %s' % artifact.name)
+                continue
+
+            if only and artifact.name not in only:
+                continue
+
+            yield artifact
+
 
 class ImagePins(Pins):
     """Manage directory of files that pin docker images
@@ -114,15 +139,15 @@ class ImagePins(Pins):
 
         pins = data.get(self.key, {})
         pins_set = False
-        for artifact in artifacts:
-            if isinstance(artifact, windlass.images.Image):
-                current_pins = pins.get(artifact.imagename, None)
-                if not isinstance(current_pins, dict):
-                    pins[artifact.imagename] = current_pins = {}
-                current_pins['version'] = version
-                if artifact.devtag != current_pins.get('devtag', 'latest'):
-                    current_pins['devtag'] = artifact.devtag
-                pins_set = True
+        for artifact in self.iter_artifacts(
+                artifacts, artifacttype=windlass.images.Image):
+            current_pins = pins.get(artifact.imagename, None)
+            if not isinstance(current_pins, dict):
+                pins[artifact.imagename] = current_pins = {}
+            current_pins['version'] = version
+            if artifact.devtag != current_pins.get('devtag', 'latest'):
+                current_pins['devtag'] = artifact.devtag
+            pins_set = True
 
         if not pins_set:
             return []
@@ -168,10 +193,8 @@ class LandscapePins(Pins):
 
     def write_pins(self, artifacts, version, repository, repodir):
         written_files = []
-        for artifact in artifacts:
-            if not isinstance(artifact, windlass.charts.Chart):
-                continue
-
+        for artifact in self.iter_artifacts(
+                artifacts, artifacttype=windlass.charts.Chart):
             pin_file = self.get_pin_file(repository, name=artifact.name)
             full_pin_file = os.path.join(repodir, pin_file)
 
@@ -283,15 +306,15 @@ class GenericPins(Pins):
 
         pins = data.get(self.key, {})
         pins_set = False
-        for artifact in artifacts:
-            if isinstance(artifact, windlass.generic.Generic):
-                current_pins = pins.get(artifact.name, {})
+        for artifact in self.iter_artifacts(
+                artifacts, artifacttype=windlass.generic.Generic):
+            current_pins = pins.get(artifact.name, {})
 
-                current_pins['version'] = version
-                current_pins['filename'] = artifact.get_filename()
+            current_pins['version'] = version
+            current_pins['filename'] = artifact.get_filename()
 
-                pins_set = True
-                pins[artifact.name] = current_pins
+            pins_set = True
+            pins[artifact.name] = current_pins
 
         if not pins_set:
             return []

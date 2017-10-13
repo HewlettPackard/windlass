@@ -185,7 +185,62 @@ the chart to point to the correct image.
 Windlass can manage lots of artifacts based on a set of pins. Windlass can parse
 a configuration file called _product-integration.yaml_ file, that it will use
 to generate a list of Artifact objects that it can now manage. Generally this is
-performed via Python api call: _windlass.pins.read\_pins_
+performed via Python api call: _windlass.pins.read\_pins_ and
+_windlass.pins.write\_pins_.
+
+The format of the product integration test is dictionary of sections:
+
+    #
+    # pins: is a dictionary sections used to control how we pin
+    # artifacts.
+    #
+    pins:
+      section1:
+          # type: type tells us how this section will manage the pins.
+          #
+          # Current choice of:
+          # - ImagePins
+          # - LandscaperPins
+          #
+          # The choice of here can change default values of variables.
+          #
+          type: ImagesPin
+
+          #
+          # pins_dir: Context directory containing all the managed pins.
+          #
+          # Default: 'pins'
+          #
+          # Applies: all types.
+          #
+          pins_dir: 'pins'
+
+          #
+          # pins_files_globs: Location of pins
+          #
+          # Uses python 3 glob https://docs.python.org/3/library/glob.html
+          # module to iterate over all the configuration files.
+          #
+          # Applies: all types.
+          #
+          # Default: ['{pins_dir}/**/*.yaml']
+          #
+
+          #
+          # ignore: [] Ignore artifacts in set
+          #
+          # List of artifacts which we ignore for this section. That
+          # is we don't write out the pins for these artifacts.
+          #
+
+          #
+          # only: [] Only artifacts in set
+          #
+          # The only list of artifacts we write pins out for in this
+          # section. If a artifact is not in this section then it is
+          # not written out.
+          #
+
 
 ## Python API
 
