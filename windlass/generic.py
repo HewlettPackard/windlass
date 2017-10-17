@@ -18,7 +18,7 @@ import fnmatch
 import windlass.api
 import glob
 import logging
-import os.path
+import os
 import requests
 
 
@@ -40,8 +40,10 @@ class Generic(windlass.api.Artifact):
     def get_filename(self):
         # Generic artifacts should be pinned to their filename so that we
         # get find them for promotion, etc.
-
-        filenames = glob.glob(self.data.get('filename'))
+        filename = self.data.get('filename')
+        if os.sep in filename or '/' in filename:
+            raise Exception('Filename cannot contain path')
+        filenames = glob.glob(filename)
         if len(filenames) != 1:
             if filenames:
                 msg = 'Found too many matching files:\n' + '\n'.join(filenames)
