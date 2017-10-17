@@ -226,11 +226,34 @@ class Image(windlass.api.Artifact):
         # support a devtag
         self.client.api.tag(remoteimage, self.imagename, self.devtag)
 
+    def update_version(self, version):
+        """Tag the image with a new version tag and update internal version.
+
+        Does not attempt to remove the old version tag.
+        """
+        if version == self.version:
+            logging.debug(
+                "update_version(image): No version change (%s)", version
+            )
+            return
+        self.client.api.tag(
+            '%s:%s' % (self.imagename, self.version),
+            self.imagename, tag=version,
+        )
+        return self.set_version(version)
+
     @windlass.api.retry()
     @windlass.api.fall_back('docker_image_registry', first_only=True)
     def upload(self, version=None, docker_image_registry=None,
                docker_user=None, docker_password=None,
                **kwargs):
+        # Start to phase out passing of version to upload.
+        if version != self.version:
+            logging.warning(
+                "Changing image %s:%s version (to %s) during upload",
+                self.imagename, self.version, version,
+            )
+
         if 'remote' in kwargs:
             try:
                 return kwargs['remote'].upload_docker(

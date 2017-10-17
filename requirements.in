@@ -19,3 +19,4 @@ docker
 gitpython
 pyyaml
 ruamel.yaml
+semver

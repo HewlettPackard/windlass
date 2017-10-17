@@ -21,6 +21,7 @@ import os
 import requests
 import requests.auth
 import ruamel.yaml
+import semver
 import subprocess
 import tarfile
 import tempfile
@@ -177,6 +178,24 @@ class Chart(windlass.api.Artifact):
             fp = open(tmp_file.name, 'rb')
             return fp.read()
 
+    def update_version(self, version):
+        """Update the chart version, re-packing if the version changes.
+
+        Does not attempt to remove old version file.
+        """
+        # Parse the version just to ensure it is valid.
+        semver.parse(version)
+        local_version = self.version or self.get_local_version()
+        if version == local_version:
+            logging.debug(
+                "update_version(chart): No version change (%s)", version
+            )
+            return
+        new_chart_file = self.get_chart_name(version)
+        with open(new_chart_file, 'wb') as f:
+            f.write(self.package_chart(local_version, version))
+        return self.set_version(version)
+
     @windlass.api.retry()
     @windlass.api.fall_back(
         'charts_url', 'docker_image_registry', first_only=True)
@@ -204,6 +223,13 @@ class Chart(windlass.api.Artifact):
         # Version to upload package as.
         upload_version = version or self.version
         upload_chart_url = self.url(upload_version, charts_url)
+
+        # Start to phase out passing of version to upload.
+        if upload_version != local_version:
+            logging.warning(
+                "Changing chart %s version (to %s) during upload",
+                local_chart_name, upload_version
+            )
 
         # Specified version is different to that on the filesystem. So
         # we need to package the chart with the new version and
