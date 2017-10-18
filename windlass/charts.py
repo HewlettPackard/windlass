@@ -21,7 +21,6 @@ import os
 import requests
 import requests.auth
 import ruamel.yaml
-import semver
 import subprocess
 import tarfile
 import tempfile
@@ -183,8 +182,6 @@ class Chart(windlass.api.Artifact):
 
         Does not attempt to remove old version file.
         """
-        # Parse the version just to ensure it is valid.
-        semver.parse(version)
         local_version = self.version or self.get_local_version()
         if version == local_version:
             logging.debug(
