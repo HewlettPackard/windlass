@@ -5,7 +5,7 @@
 #    pip-compile --output-file requirements.txt requirements.in
 #
 boto3==1.4.7
-botocore==1.7.22          # via boto3, s3transfer
+botocore==1.7.29          # via boto3, s3transfer
 certifi==2017.7.27.1      # via requests
 chardet==3.0.4            # via requests
 docker-pycreds==0.2.1     # via docker
@@ -20,6 +20,7 @@ pyyaml==3.12
 requests==2.18.4          # via docker
 ruamel.yaml==0.15.34
 s3transfer==0.1.11        # via boto3
+semver==2.7.9
 six==1.11.0               # via docker, docker-pycreds, python-dateutil, websocket-client
 smmap2==2.0.3             # via gitdb2
 urllib3==1.22             # via requests

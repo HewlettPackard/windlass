@@ -109,6 +109,11 @@ class Artifact(object):
         """
         raise NotImplementedError('upload not implemented')
 
+    def update_version(self, version):
+        """Update an artifact's version, rewriting it if necessary"""
+        # Make the default behaviour same as set_version()
+        return self.set_version(version)
+
     def export_stream(self, version=None):
         """Export an artifact to a stream object"""
         raise NotImplementedError('export_stream not implemented')
