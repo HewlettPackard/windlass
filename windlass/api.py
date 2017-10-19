@@ -393,9 +393,9 @@ class Windlass(object):
             if len([p for p in self.procs if p.is_alive()]) == 0:
                 return True
 
-    def work(self, parallel, process, artifact, **kwargs):
+    def work(self, parallel, process, artifact, retq, **kwargs):
         try:
-            process(artifact, **kwargs)
+            retq.put((artifact.name, process(artifact, **kwargs)))
         except Exception:
             logging.exception(
                 'Processing image %s failed with exception', artifact.name)
@@ -418,6 +418,12 @@ class Windlass(object):
             d[k].append(artifact)
 
         failed = False
+        # Use a queue to fetch back the return values, and an intermediate
+        # dict to store them, using the artifact name as key.
+        # (Assuming that artifact name is unique to the list of artifacts being
+        # processed).
+        retq = multiprocessing.Queue()
+        retd = {}
         for i in reversed(sorted(d.keys())):
             for artifact in d[i]:
                 p = multiprocessing.Process(
@@ -426,6 +432,7 @@ class Windlass(object):
                         parallel,
                         processor,
                         artifact,
+                        retq,
                     ),
                     kwargs=kwargs,
                     name=artifact.name,
@@ -438,9 +445,14 @@ class Windlass(object):
 
             if not self.wait_for_procs():
                 failed = True
-
+            # Empty the return queue
+            while not retq.empty():
+                (aname, rval) = retq.get()
+                logging.debug("Fetched from retq: %s, %s", aname, rval)
+                retd[aname] = rval
         if failed:
             raise Exception('Failed to process artifacts')
+        return [retd.get(a.name) for a in self.artifacts]
 
     def set_version(self, version):
         for artifact in self.artifacts:
@@ -464,7 +476,7 @@ class Windlass(object):
 
         version - override the version of the artifacts
         """
-        self.run(
+        return self.run(
             lambda artifact: artifact.download(version=version, **kwargs),
             type=type,
             parallel=parallel)
@@ -479,7 +491,7 @@ class Windlass(object):
 
         version - override the version of the artifacts
         """
-        self.run(
+        return self.run(
             lambda artifact: artifact.upload(version=version, **kwargs),
             type=type,
             parallel=parallel)

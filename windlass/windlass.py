@@ -146,16 +146,15 @@ WORKSPACE or else if that isn't present to your parent directory.''')
     docker_user = os.environ.get('DOCKER_USER', None)
     docker_password = os.environ.get('DOCKER_TOKEN', None)
 
-    failed = g.run(process,
-                   parallel=not ns.no_parallel,
-                   docker_user=docker_user,
-                   docker_password=docker_password)
-
-    if failed:
+    try:
+        g.run(process,
+              parallel=not ns.no_parallel,
+              docker_user=docker_user,
+              docker_password=docker_password)
+        logging.info('Windlassed: %s', ','.join(ns.products))
+    except Exception:
         logging.error('Failed to windlass: %s', ','.join(ns.products))
         exit(1)
-    else:
-        logging.info('Windlassed: %s', ','.join(ns.products))
 
 
 if __name__ == '__main__':
