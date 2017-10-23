@@ -43,3 +43,14 @@ def split_image(image):
     if host:
         return host + "/" + imagename, tag
     return imagename, tag
+
+
+def all_blob_names(tree, parent=''):
+    """This returns all blobs names from git tree object
+
+    """
+    for t in tree.trees:
+        for b in all_blob_names(t, os.path.join(parent, tree.name)):
+            yield b
+    for b in tree.blobs:
+        yield os.path.join(parent, tree.name, b.name)
