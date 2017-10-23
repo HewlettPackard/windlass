@@ -21,6 +21,7 @@ images:
   some/image2:
     version: 12345
     devtag: 2
-
+    zing-metadata:
+      stuff: 112233
   # Legacy format that just indicates the version of the image
   other/image2: 54321
