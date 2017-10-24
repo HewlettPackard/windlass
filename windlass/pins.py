@@ -424,13 +424,19 @@ def read_pins(repodir=None):
     return pins
 
 
-def diff_pins_dir(lhs_repo_dir, rhs_repo_dir):
+def diff_pins_dir(lhs_repo_dir, rhs_repo_dir, metadata=False):
     lhs_pins = read_pins(lhs_repo_dir)
     rhs_pins = read_pins(rhs_repo_dir)
-    return diff_pins(lhs_pins, rhs_pins)
+    return diff_pins(lhs_pins, rhs_pins, metadata=metadata)
 
 
-def diff_pins(lhs_pins, rhs_pins):
+def diff_pins(lhs_pins, rhs_pins, metadata=False):
+
+    def changed_metadata(lh, rh):
+        return metadata and (
+            lh.data.get('zing-metadata', {}) !=
+            rh.data.get('zing-metadata', {})
+        )
 
     diff_pins = []
     # Check for pins changes betweeen lhs and rhs
@@ -440,7 +446,10 @@ def diff_pins(lhs_pins, rhs_pins):
             lhs=lh,
             rhs=rh
         ) for rh in rhs_pins for lh in lhs_pins
-        if rh.name == lh.name and rh.version != lh.version])
+        if rh.name == lh.name and (
+            rh.version != lh.version or changed_metadata(lh, rh)
+        )
+    ])
 
     # Check for pins in rhs but not in lhs
     for rh in rhs_pins:
