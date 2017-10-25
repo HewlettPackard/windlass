@@ -67,7 +67,10 @@ class Generic(windlass.api.Artifact):
             for item in uri_list:
                 artifact_name = item['uri'].split('/')[-1]
                 if fnmatch.fnmatch(artifact_name, self.data.get('filename')):
-                    return item['uri']
+                    return requests.get(
+                        item['uri'],
+                        verify='/etc/ssl/certs'
+                    ).json()['downloadUri']
 
             msg = 'Could not find artifact version %s in %s' % (version, repo)
             raise Exception(msg)
@@ -133,7 +136,7 @@ class Generic(windlass.api.Artifact):
         logging.info('%s: Successfully pushed artifact' % self.name)
 
     def export_stream(self, version=None):
-        return open(self.get_filename(), 'r')
+        return open(self.get_filename(), 'rb')
 
     def export(self, export_dir='.', export_name=None, version=None):
         if export_name is None:
@@ -142,6 +145,6 @@ class Generic(windlass.api.Artifact):
         logging.debug(
             "Exporting generic %s to %s", self.name, export_path
         )
-        with open(export_path, 'w') as f:
+        with open(export_path, 'wb') as f:
             f.write(self.export_stream().read())
         return export_path
