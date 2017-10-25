@@ -259,7 +259,12 @@ class Chart(windlass.api.Artifact):
                 data=data,
                 auth=auth,
                 verify='/etc/ssl/certs')
-            if resp.status_code != 201:
+            if resp.status_code in (
+                    requests.codes.unauthorized, requests.codes.forbidden):
+                # No retries in this case.
+                raise Exception('Permission error (%s) uploading chart %s' % (
+                    resp, upload_chart_url))
+            elif resp.status_code != 201:
                 raise windlass.api.RetryableFailure(
                     'Failed (status: %d) to upload %s' % (
                         resp.status_code, upload_chart_url))

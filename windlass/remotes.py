@@ -269,6 +269,11 @@ class HTTPBasicAuthConnector(object):
             data=stream,
             auth=auth,
             verify='/etc/ssl/certs')
+        if resp.status_code in (
+                requests.codes.unauthorized, requests.codes.forbidden):
+            # No retries in this case.
+            raise Exception('Permission error (%s) uploading generic %s' % (
+                resp, upload_url))
         if resp.status_code != 201:
             raise windlass.api.RetryableFailure(
                 'Failed (status: %d) to upload %s' % (
