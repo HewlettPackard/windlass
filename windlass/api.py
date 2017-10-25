@@ -320,6 +320,8 @@ class fall_back(object):
     This allows use to download proposed artifacts that haven't been promoted
     yet. We try to download the artifact from alpha registry but this can
     fail and we will fall back to downloading the artifact from staging.
+
+    The first argument of the wrapped function must be an Artifact object.
     """
 
     def __init__(self, *keys, **kwargs):
@@ -344,7 +346,6 @@ class fall_back(object):
 
             if not all_fall_backs:
                 raise Exception('Missing arguments: %s' % ','.join(self.keys))
-
             for count, fall_backs in enumerate(zip(*all_fall_backs)):
                 for idx, fall_back in enumerate(fall_backs):
                     kwargs[self.keys[idx]] = fall_back
@@ -358,7 +359,7 @@ class fall_back(object):
                         exc_info=True,
                     )
 
-                    if self.first_only or count == len(all_fall_backs[0]):
+                    if self.first_only or count == (len(all_fall_backs[0])-1):
                         # Failed to find artifact so raise error
                         raise
                     # log error
@@ -366,7 +367,7 @@ class fall_back(object):
             # No artifact found
             artifact = args[0]
             raise Exception('Failed to find artifact %s, version: %s' % (
-                artifact.name, kwargs['version'] or artifact.version))
+                artifact.name, kwargs.get('version') or artifact.version))
 
         return fall_back_f
 
