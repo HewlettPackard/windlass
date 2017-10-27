@@ -282,6 +282,7 @@ class AWSRemote(windlass.api.Remote):
         )
         self.ecr = ExceptionConnector(self, 'docker')
         self.signature_connector = ExceptionConnector(self, 'signatures')
+        self.generic_connector = ExceptionConnector(self, 'generic')
 
     def __str__(self):
         return "AWSRemote(region=%s, key_id=%s)" % (
@@ -304,6 +305,12 @@ class AWSRemote(windlass.api.Remote):
         path = artifact_type + '/' + sig_name
         return self.signature_connector.upload(path, sig_stream)
 
+    def setup_generic(self, bucket, prefix=None):
+        self.generic_connector = S3Connector(self.creds, bucket, prefix)
+
+    def upload_generic(self, name, stream):
+        return self.generic_connector.upload(name, stream)
+
 
 class ArtifactoryRemote(windlass.api.Remote):
     def __init__(self, url, username, password):
@@ -318,6 +325,7 @@ class ArtifactoryRemote(windlass.api.Remote):
         # (as HTTPBasicAuthConnector) to allow reusing ExceptionConnectors.
         self.docker = ExceptionConnector(self, 'docker')
         self.signature_connector = ExceptionConnector(self, 'signatures')
+        self.generic_connector = ExceptionConnector(self, 'generic')
 
     def upload_docker(self, local_name, upload_name=None, upload_tag=None):
         return self.docker.upload(local_name, upload_name, upload_tag)
@@ -330,3 +338,11 @@ class ArtifactoryRemote(windlass.api.Remote):
     def upload_signature(self, artifact_type, sig_name, sig_stream):
         path = artifact_type + '/' + sig_name
         return self.signature_connector.upload(path, sig_stream)
+
+    def setup_generic(self, path):
+        self.generic_connector = HTTPBasicAuthConnector(
+            self.url + path, self.username, self.password
+        )
+
+    def upload_generic(self, name, stream):
+        return self.generic_connector.upload(name, stream)
