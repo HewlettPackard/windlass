@@ -146,10 +146,16 @@ class Image(windlass.api.Artifact):
 
         self.client = from_env(version='auto')
 
-    def __str__(self):
-        return "windlass.image.Image(name=%s, version=%s)" % (
-            self.imagename, self.version
+    def __repr__(self):
+        return (
+            "windlass.image.Image(data=dict(name='%s', version='%s',"
+            " devtag='%s'))" % (
+                self.imagename, self.version, self.devtag
+            )
         )
+
+    def __str__(self):
+        return '<Docker image %s (%s)>' % (self.name, self.version)
 
     def pull_image(self, remoteimage, imagename, tag):
         """Pull the remoteimage down

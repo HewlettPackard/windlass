@@ -22,6 +22,10 @@ import os
 import requests
 
 
+class LocalArtifactCopyMissing(Exception):
+    pass
+
+
 @windlass.api.register_type('generic')
 class Generic(windlass.api.Artifact):
     """Generic artifact type
@@ -32,10 +36,25 @@ class Generic(windlass.api.Artifact):
 
     Upload artifact
     """
-    def __str__(self):
-        return "windlass.generic.Generic(name=%s, filename=%s)" % (
-            self.name, self.get_filename()
+    def __repr__(self):
+        return (
+            "windlass.generic.Generic(data=dict(name='%s', version='%s',"
+            " filename='%s'))" % (
+                self.name, self.version, self.data.get('filename')
+            )
         )
+
+    def __str__(self):
+        result = "<Generic artifact %s version %s" % (self.name, self.version)
+        fname = self.data.get('filename')
+        if '*' in fname or '?' in fname:
+            try:
+                result += ' stored in %s>' % (self.get_filename())
+            except LocalArtifactCopyMissing:
+                result += ' matches %s>' % (fname)
+        else:
+            result += ' stored in %s>' % fname
+        return result
 
     def get_filename(self):
         # Generic artifacts should be pinned to their filename so that we
@@ -50,7 +69,7 @@ class Generic(windlass.api.Artifact):
             else:
                 msg = 'Failed to found artifacts matching %s' \
                       % self.data.get('filename')
-            raise Exception(msg)
+            raise LocalArtifactCopyMissing(msg)
 
         return filenames[0]
 
