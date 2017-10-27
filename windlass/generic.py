@@ -148,3 +148,8 @@ class Generic(windlass.api.Artifact):
         with open(export_path, 'wb') as f:
             f.write(self.export_stream().read())
         return export_path
+
+    def build(self):
+        logging.warning(
+            '%s is generic artifact and windlass will not build it' % self.name
+        )
