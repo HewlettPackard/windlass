@@ -171,11 +171,16 @@ class ImagePins(Pins):
     def read_pins(self, repodir=None):
         pins = []
 
+        ignore = self.config.get('ignore', [])
+
         for pin_file in self.iter_pin_files(repodir):
             data = ruamel.yaml.safe_load(open(pin_file))
             if data:
                 images = data.get(self.key, {})
                 for image, version in images.items():
+                    if image in ignore:
+                        logging.debug('Ignoring image %s for reading' % image)
+                        continue
                     if isinstance(version, dict):
                         pins.append(
                             windlass.images.Image(dict(
@@ -256,6 +261,8 @@ class LandscapePins(Pins):
     def read_pins(self, repodir=None):
         pins = []
 
+        ignore = self.config.get('ignore', [])
+
         for pin_file in self.iter_pin_files(repodir):
             data = ruamel.yaml.safe_load(open(pin_file))
             release = data and data.get('release', None)
@@ -269,6 +276,10 @@ class LandscapePins(Pins):
                     'Conflicting chart version in file %s' % pin_file)
 
             chart_name = chart.split('/', 1)[-1]
+
+            if chart_name in ignore:
+                logging.debug('Ignoring chart %s for reading' % chart_name)
+                continue
 
             pins.append(
                 windlass.charts.Chart(dict(
@@ -350,16 +361,23 @@ class GenericPins(Pins):
     def read_pins(self, repodir=None):
         pins = []
 
+        ignore = self.config.get('ignore', [])
+
         for pin_file in self.iter_pin_files(repodir):
             data = ruamel.yaml.safe_load(open(pin_file))
             if data:
-                images = data.get(self.key, {})
+                artifacts = data.get(self.key, {})
                 # content is dictionary with version and filename
-                for image, content in images.items():
-                        pins.append(
-                            windlass.generic.Generic(dict(
-                                name=image,
-                                **content)))
+                for artifact, content in artifacts.items():
+                    if artifact in ignore:
+                        logging.debug(
+                            'Ignoring generic artifact %s for reading' % (
+                                artifact))
+                        continue
+                    pins.append(
+                        windlass.generic.Generic(dict(
+                            name=artifact,
+                            **content)))
         return pins
 
 
