@@ -38,8 +38,13 @@ class Chart(windlass.api.Artifact):
     upload
     """
     def __str__(self):
-        return "windlass.charts.Chart(name=%s)" % (
-            self.get_chart_name(self.version)
+        return "<Helm chart %s>" % self.get_chart_name(
+            self.version or self.get_local_version()
+        )
+
+    def __repr__(self):
+        return "windlass.charts.Chart(data=dict(name='%s', version='%s'))" % (
+            self.name, self.version
         )
 
     def get_chart_dir(self):
