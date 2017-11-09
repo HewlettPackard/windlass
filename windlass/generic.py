@@ -124,10 +124,6 @@ class Generic(windlass.api.Artifact):
                generic_url=None,
                docker_user=None, docker_password=None,
                **kwargs):
-        if not generic_url:
-            raise Exception(
-                'generic_url not specified. Unable to publish artifact %s' % (
-                    self.name))
 
         local_filename = self.get_filename()
         data = open(local_filename, 'rb').read()
@@ -135,6 +131,23 @@ class Generic(windlass.api.Artifact):
             temp_path = 'temp/'
         else:
             temp_path = ''
+
+        if 'remote' in kwargs:
+            try:
+                # Ignoring version.
+                return kwargs['remote'].upload_generic(
+                    temp_path + local_filename, self.export_stream()
+                )
+            except windlass.api.NoValidRemoteError:
+                # Fall thru to old upload code.
+                logging.debug(
+                    "No generic endpoint configured for %s", kwargs['remote']
+                )
+        if not generic_url:
+            raise Exception(
+                'generic_url not specified. Unable to publish artifact %s' % (
+                    self.name))
+
         upload_url = '%s/%s%s%s' % (
             generic_url,
             temp_path,
