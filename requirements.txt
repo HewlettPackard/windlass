@@ -24,3 +24,4 @@ six==1.11.0               # via docker, docker-pycreds, python-dateutil, websock
 smmap2==2.0.3             # via gitdb2
 urllib3==1.22             # via requests
 websocket-client==0.44.0  # via docker
+prettytable==0.7.2        # needed for pindiff

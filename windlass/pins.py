@@ -14,9 +14,12 @@
 # under the License.
 #
 
+import fnmatch
 import windlass.charts
 import windlass.generic
 import windlass.images
+import windlass.tools
+import git
 import glob
 import importlib
 import logging
@@ -60,7 +63,7 @@ class Pins(object):
             pin_files_glob.format(
                 pins_dir=self.pins_dir)
             for pin_files_glob in globs]
-        if repodir:
+        if repodir and not isinstance(repodir, git.Commit):
             files_globs = [
                 os.path.join(repodir, files_glob)
                 for files_glob in files_globs]
@@ -68,11 +71,16 @@ class Pins(object):
 
     def iter_pin_files(self, repodir=None):
         pin_files_globs = self.get_pins_files_globs(repodir)
-        pin_files_globs.reverse()
-
-        for pin_files_glob in pin_files_globs:
-            for pin_file in glob.glob(pin_files_glob):
-                yield pin_file
+        pin_files_globs.reverse
+        if isinstance(repodir, git.Commit):
+            fnlist = [i for i in windlass.tools.all_blob_names(repodir.tree)]
+            for pin_files_glob in pin_files_globs:
+                for blob_name in fnmatch.filter(fnlist, pin_files_glob):
+                    yield (repodir.tree / blob_name).data_stream
+        else:
+            for pin_files_glob in pin_files_globs:
+                for pin_file in glob.glob(pin_files_glob):
+                    yield open(pin_file)
 
     def iter_artifacts(self, artifacts, artifacttype=None):
         ignore = self.config.get('ignore', [])
@@ -173,8 +181,8 @@ class ImagePins(Pins):
 
         ignore = self.config.get('ignore', [])
 
-        for pin_file in self.iter_pin_files(repodir):
-            data = ruamel.yaml.safe_load(open(pin_file))
+        for pin_stream in self.iter_pin_files(repodir):
+            data = ruamel.yaml.safe_load(pin_stream)
             if data:
                 images = data.get(self.key, {})
                 for image, version in images.items():
@@ -263,8 +271,8 @@ class LandscapePins(Pins):
 
         ignore = self.config.get('ignore', [])
 
-        for pin_file in self.iter_pin_files(repodir):
-            data = ruamel.yaml.safe_load(open(pin_file))
+        for pin_stream in self.iter_pin_files(repodir):
+            data = ruamel.yaml.safe_load(pin_stream)
             release = data and data.get('release', None)
             if not release:
                 continue
@@ -273,7 +281,7 @@ class LandscapePins(Pins):
             chart_version = release.get('version', version)
             if version != chart_version:
                 raise RuntimeError(
-                    'Conflicting chart version in file %s' % pin_file)
+                    'Conflicting chart version for chart %s' % chart)
 
             chart_name = chart.split('/', 1)[-1]
 
@@ -363,8 +371,8 @@ class GenericPins(Pins):
 
         ignore = self.config.get('ignore', [])
 
-        for pin_file in self.iter_pin_files(repodir):
-            data = ruamel.yaml.safe_load(open(pin_file))
+        for pin_stream in self.iter_pin_files(repodir):
+            data = ruamel.yaml.safe_load(pin_stream)
             if data:
                 artifacts = data.get(self.key, {})
                 # content is dictionary with version and filename
@@ -402,13 +410,19 @@ def import_class(class_string):
 
 def read_configuration(repodir=None):
     configuration = 'product-integration.yaml'
-    if repodir:
-        configuration = os.path.join(repodir, configuration)
-    if not os.path.exists(configuration):
-        raise RuntimeError('%s does not exist' % (configuration))
-
+    if isinstance(repodir, git.Commit):
+        if configuration in repodir.tree:
+            stream = (repodir.tree/configuration).data_stream
+        else:
+            raise RuntimeError('%s does not exist' % (configuration))
+    else:
+        if repodir:
+            configuration = os.path.join(repodir, configuration)
+            if not os.path.exists(configuration):
+                raise RuntimeError('%s does not exist' % (configuration))
+        stream = open(configuration)
     configuration_data = ruamel.yaml.load(
-        open(configuration), Loader=ruamel.yaml.RoundTripLoader)
+        stream, Loader=ruamel.yaml.RoundTripLoader)
 
     return configuration_data
 
