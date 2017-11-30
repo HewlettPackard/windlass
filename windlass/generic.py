@@ -127,16 +127,12 @@ class Generic(windlass.api.Artifact):
 
         local_filename = self.get_filename()
         data = open(local_filename, 'rb').read()
-        if version and version.startswith('temp_'):
-            temp_path = 'temp/'
-        else:
-            temp_path = ''
-
         if 'remote' in kwargs:
             try:
                 # Ignoring version.
                 return kwargs['remote'].upload_generic(
-                    temp_path + local_filename, self.export_stream()
+                    local_filename, self.export_stream(),
+                    properties={'version': version}
                 )
             except windlass.api.NoValidRemoteError:
                 # Fall thru to old upload code.
@@ -147,6 +143,11 @@ class Generic(windlass.api.Artifact):
             raise Exception(
                 'generic_url not specified. Unable to publish artifact %s' % (
                     self.name))
+
+        if version and version.startswith('temp_'):
+            temp_path = 'temp/'
+        else:
+            temp_path = ''
 
         upload_url = '%s/%s%s%s' % (
             generic_url,

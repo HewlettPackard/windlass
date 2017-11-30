@@ -249,27 +249,64 @@ class ExceptionConnector(object):
 
 class HTTPBasicAuthConnector(object):
     def __init__(self, url, username, password):
-        if url.endswith('/'):
-            self.base_url = url
-        else:
-            self.base_url = url + '/'
+        self.base_url = url
         self.username = username
         self.password = password
 
-    def upload(self, upload_name, stream):
+    def upload(self, upload_name, stream, properties={}):
         auth = requests.auth.HTTPBasicAuth(
             self.username, self.password
         )
-        url = self.base_url + upload_name
-        logging.info("Upload to %s" % url)
+
+        upload_url = os.path.join(self.base_url, upload_name)
+        logging.info("Upload to %s" % upload_url)
+
+        props = ';'.join(['%s=%s' % (k, v) for k, v in properties.items()])
+        if props:
+            upload_url = '%s;%s' % (upload_url, props)
         resp = requests.put(
-            url, data=stream, auth=auth, verify='/etc/ssl/certs'
-        )
+            upload_url,
+            data=stream,
+            auth=auth,
+            verify='/etc/ssl/certs')
         if resp.status_code != 201:
             raise windlass.api.RetryableFailure(
-                'Failed (status: %d) to upload %s' % (resp.status_code, url)
-            )
-        return url
+                'Failed (status: %d) to upload %s' % (
+                    resp.status_code, upload_url))
+        return upload_url
+
+
+class HTTPBasicAuthConnector2Phase(HTTPBasicAuthConnector):
+    """Simple connector to publish artifacts over http
+
+    temp_path: If the temp_path is set then the system windlass
+    is embedded in is performing a two step transaction. First
+    push up the artiact under the temp_path, and the then later
+    move this artifact to its final location.
+
+    If the temp_path is set then we will check if the artifact
+    exists in the final location. If it does we will raise an
+    exception.
+    """
+
+    def __init__(self, url, username, password, temp_path=''):
+        super().__init__(url, username, password)
+        self.temp_path = temp_path
+
+    def upload(self, upload_name, stream, properties={}):
+        if self.temp_path:
+            # Don't upload the artifact if the artifact exists in the
+            # final location.
+            # TODO(kerrin) make this configurable
+            check_url = os.path.join(self.base_url, upload_name)
+            check_resp = requests.head(check_url, verify='/etc/ssl/certs')
+            if check_resp.ok:
+                raise Exception('Artifact %s already exists' % check_url)
+
+        return super().upload(
+            os.path.join(self.temp_path, upload_name),
+            stream,
+            properties=properties)
 
 
 class AWSRemote(windlass.api.Remote):
@@ -308,16 +345,13 @@ class AWSRemote(windlass.api.Remote):
     def setup_generic(self, bucket, prefix=None):
         self.generic_connector = S3Connector(self.creds, bucket, prefix)
 
-    def upload_generic(self, name, stream):
+    def upload_generic(self, name, stream, properties={}):
+        # Ignore properties for AWS
         return self.generic_connector.upload(name, stream)
 
 
 class ArtifactoryRemote(windlass.api.Remote):
-    def __init__(self, url, username, password):
-        if url.endswith('/'):
-            self.url = url
-        else:
-            self.url = url + '/'
+    def __init__(self, username, password):
         self.username = username
         self.password = password
         # TODO(desbonne): Might make more sense to bring the connection
@@ -330,19 +364,20 @@ class ArtifactoryRemote(windlass.api.Remote):
     def upload_docker(self, local_name, upload_name=None, upload_tag=None):
         return self.docker.upload(local_name, upload_name, upload_tag)
 
-    def setup_signatures(self, path):
+    def setup_signatures(self, url):
         self.signature_connector = HTTPBasicAuthConnector(
-            self.url + path, self.username, self.password
+            url, self.username, self.password
         )
 
     def upload_signature(self, artifact_type, sig_name, sig_stream):
         path = artifact_type + '/' + sig_name
         return self.signature_connector.upload(path, sig_stream)
 
-    def setup_generic(self, path):
-        self.generic_connector = HTTPBasicAuthConnector(
-            self.url + path, self.username, self.password
+    def setup_generic(self, url, temp_path):
+        self.generic_connector = HTTPBasicAuthConnector2Phase(
+            url, self.username, self.password, temp_path=temp_path,
         )
 
-    def upload_generic(self, name, stream):
-        return self.generic_connector.upload(name, stream)
+    def upload_generic(self, name, stream, properties):
+        return self.generic_connector.upload(
+            name, stream, properties=properties)
