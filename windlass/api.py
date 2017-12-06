@@ -36,6 +36,8 @@ DEPRECATED_PRODUCT_FILES = [
 ]
 
 DEFAULT_PRODUCT_FILES = ['artifacts.yaml'] + DEPRECATED_PRODUCT_FILES
+# Pick the first of these as the canonical name.
+CANONICAL_PRODUCT_FILE = DEFAULT_PRODUCT_FILES[0]
 
 
 class Artifact(object):
@@ -221,13 +223,19 @@ class Artifacts(object):
                                 repopath=destpath,
                                 **metadata
                             )
-
+                            if not items:
+                                logging.warning(
+                                    'No artifacts found in %s - missing %s?',
+                                    repourl, CANONICAL_PRODUCT_FILE
+                                )
                             nameditems = [
                                 item for item in items
                                 if item.name == artifact_def.get('name')]
                             if not nameditems:
-                                raise Exception('Failed to find %s in %s' % (
-                                    artifact_def['name'], repourl))
+                                raise Exception(
+                                    'Failed to find %s in %s - check %s' % (
+                                        artifact_def['name'], repourl,
+                                        CANONICAL_PRODUCT_FILE))
                             elif len(nameditems) > 1:
                                 raise Exception(
                                     'Found %d of %s in %s' % (
