@@ -383,7 +383,7 @@ class fall_back(object):
 class Windlass(object):
 
     def __init__(self, products_to_parse=None, artifacts=None, workspace=None):
-        if artifacts:
+        if artifacts is not None:
             self.artifacts = artifacts
         else:
             self.artifacts = Artifacts(products_to_parse, workspace)
