@@ -276,6 +276,7 @@ class LandscapePins(Pins):
             release = data and data.get('release', None)
             if not release:
                 continue
+            metadata = data.get('zing-metadata')
             chart = release['chart']
             chart, version = chart.split(':', 1)
             chart_version = release.get('version', version)
@@ -290,9 +291,11 @@ class LandscapePins(Pins):
                 continue
 
             pins.append(
-                windlass.charts.Chart(dict(
-                    name=chart_name,
-                    version=version)))
+                windlass.charts.Chart(data={
+                    'name': chart_name,
+                    'version': version,
+                    'zing-metadata': metadata
+                }))
 
         return pins
 
