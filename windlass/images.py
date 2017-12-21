@@ -93,7 +93,6 @@ def build_verbosly(name, path, nocache=False, dockerfile=None,
                               nocache=nocache,
                               buildargs=bargs,
                               dockerfile=dockerfile,
-                              stream=True,
                               pull=pull)
     errors = []
     output = []
@@ -343,7 +342,7 @@ class Image(windlass.api.Artifact):
             timeout=180)
         img_name = self.imagename + ':' + self.version
         img = client.images.get(img_name)
-        return img.save().stream()
+        return img.save()
 
     def export(self, export_dir='.', export_name=None, version=None):
         client = docker.from_env(

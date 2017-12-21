@@ -1,5 +1,5 @@
 #
-# (c) Copyright 2017 Hewlett Packard Enterprise Development LP
+# (c) Copyright 2017-2018 Hewlett Packard Enterprise Development LP
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -107,7 +107,8 @@ class Test_E2E_FakeRepo(FakeRegistry):
         else:
             self.fail("Image %s exists. It shouldn't" % fullimagename)
 
-        image = self.client.images.pull(fullimagename)
+        # docker 3.0.1 changed api for pull method
+        image = self.client.images.pull(fullimagename)[0]
         _, tags = zip(*(t.split('/')[-1].split(':') for t in image.tags))
         self.expectThat(tags, Contains('latest'),
                         '%s image missing latest tag' % imagename)
