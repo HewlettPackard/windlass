@@ -1,6 +1,5 @@
-
 #
-# (c) Copyright 2017 Hewlett Packard Enterprise Development LP
+# (c) Copyright 2017-2018 Hewlett Packard Enterprise Development LP
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -156,7 +155,8 @@ class Artifacts(object):
             repopath=os.path.abspath('.'))
 
     def __del__(self):
-        shutil.rmtree(self.tempdir)
+        if os.path.exists(self.tempdir):
+            shutil.rmtree(self.tempdir)
 
     def load(self,
              products_to_parse,
@@ -380,42 +380,54 @@ class fall_back(object):
         return fall_back_f
 
 
+class DummyResult(object):
+
+    def __init__(self, result):
+        self._value = result
+
+    def get(self, timeout=None):
+        return self._value
+
+    def ready(self):
+        return False
+
+    def wait(self):
+        return
+
+
 class Windlass(object):
 
-    def __init__(self, products_to_parse=None, artifacts=None, workspace=None):
+    def __init__(self,
+                 products_to_parse=None,
+                 artifacts=None,
+                 workspace=None,
+                 pool_size=4):
         if artifacts is not None:
             self.artifacts = artifacts
         else:
             self.artifacts = Artifacts(products_to_parse, workspace)
-        self.failure_occured = multiprocessing.Event()
         self.max_retries = 3
         self.retry_backoff = 5
 
-    def wait_for_procs(self):
-        while True:
-            if self.failure_occured.wait(0.1):
-                for p in self.procs:
-                    p.terminate()
-                logging.info('Killed all processes')
-                return False
+        self.pool_size = pool_size
 
-            if len([p for p in self.procs if p.is_alive()]) == 0:
-                return True
+        self._running = False
+        self._pool = None
+        self._failed = False
 
-    def work(self, parallel, process, artifact, retq, **kwargs):
-        try:
-            retq.put((artifact.name, process(artifact, **kwargs)))
-        except Exception:
-            logging.exception(
-                'Processing image %s failed with exception', artifact.name)
-            self.failure_occured.set()
-            if not parallel:
-                # If not running parallel raise exception here
-                raise
+    def _er_cb(self, result):
+        # Runs in same process as the run method, but not the main thread
+        logging.error("Error callback called processing artifacts")
+        self._failed = True
+        self._pool.terminate()
+        self._running = False
+        # This is an error, so raise this method. This won't kill the
+        # process as this is not in the main thread and is ignored.
+        raise result
 
     def run(self, processor, type=None, parallel=True, **kwargs):
-        # Reset events.
-        self.procs = []
+        if self._running:
+            raise Exception('Windlass is already processing these artifacts')
 
         d = defaultdict(list)
         for artifact in self.artifacts:
@@ -426,41 +438,54 @@ class Windlass(object):
             k = artifact.priority
             d[k].append(artifact)
 
-        failed = False
-        # Use a queue to fetch back the return values, and an intermediate
-        # dict to store them, using the artifact name as key.
-        # (Assuming that artifact name is unique to the list of artifacts being
-        # processed).
-        retq = multiprocessing.Queue()
-        retd = {}
+        # Reset events.
+        results = []
+
+        self._failed = False
+        self._pool = multiprocessing.Pool(self.pool_size)
         for i in reversed(sorted(d.keys())):
             for artifact in d[i]:
-                p = multiprocessing.Process(
-                    target=self.work,
-                    args=(
-                        parallel,
-                        processor,
-                        artifact,
-                        retq,
-                    ),
-                    kwargs=kwargs,
-                    name=artifact.name,
-                )
                 if parallel:
-                    p.start()
-                    self.procs.append(p)
+                    result = self._pool.apply_async(
+                        processor,
+                        args=(
+                            artifact,
+                        ),
+                        kwds=kwargs,
+                        error_callback=self._er_cb)
+                    self._running = True
                 else:
-                    p.run()
+                    # Call processor and wrap the result in a
+                    # dummy result object
+                    result = DummyResult(
+                        processor(artifact, **kwargs)
+                    )
 
-            if not self.wait_for_procs():
-                failed = True
-            # Empty the return queue
-            while not retq.empty():
-                (aname, rval) = retq.get()
-                logging.debug("Fetched from retq: %s, %s", aname, rval)
-                retd[aname] = rval
-        if failed:
-            raise Exception('Failed to process artifacts')
+                result.artifact = artifact
+                results.append(result)
+
+            # _pool.join will not abort running jobs
+            def finished():
+                return len([r for r in results if not r.ready()]) == 0
+
+            # Wait for the current priority artifacts to be processed
+            while self._running and not self._failed and not finished():
+                for result in results:
+                    if not result.ready():
+                        result.wait(.2)
+
+            # The error callback was called. This set _running to False
+            # and terminated the pool of processes.
+            if self._failed:
+                raise Exception('Failed to process artifacts')
+
+        # Allow future calls to run on the same set of artifacts to work
+        self._running = False
+
+        retd = {}
+        for result in results:
+            retd[result.artifact.name] = result.get()
+
         return [retd.get(a.name) for a in self.artifacts]
 
     def set_version(self, version):
@@ -475,8 +500,8 @@ class Windlass(object):
 
         return list_items
 
-    def build(self):
-        self.run(lambda artifact: artifact.build())
+    def build(self, parallel=True, **kwargs):
+        self.run(_build_artifact, parallel=parallel)
 
     def download(self, version=None, type=None, parallel=True, **kwargs):
         """Download the artifact
@@ -486,9 +511,10 @@ class Windlass(object):
         version - override the version of the artifacts
         """
         return self.run(
-            lambda artifact: artifact.download(version=version, **kwargs),
+            _download_artifact,
             type=type,
-            parallel=parallel)
+            parallel=parallel,
+            **kwargs)
 
     def upload(self, version=None, type=None, parallel=True, **kwargs):
         """Upload artifact
@@ -501,9 +527,23 @@ class Windlass(object):
         version - override the version of the artifacts
         """
         return self.run(
-            lambda artifact: artifact.upload(version=version, **kwargs),
+            _upload_artifact,
             type=type,
-            parallel=parallel)
+            parallel=parallel,
+            version=version,
+            **kwargs)
+
+
+def _build_artifact(artifact):
+    return artifact.build()
+
+
+def _download_artifact(artifact, version=None, **kwargs):
+    return artifact.download(version=version, **kwargs)
+
+
+def _upload_artifact(artifact, version=None, **kwargs):
+    return artifact.upload(version=version, **kwargs)
 
 
 def download(artifacts, parallel=True, **kwargs):

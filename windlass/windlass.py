@@ -1,6 +1,6 @@
 #!/bin/env python3
 #
-# (c) Copyright 2017 Hewlett Packard Enterprise Development LP
+# (c) Copyright 2017-2018 Hewlett Packard Enterprise Development LP
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -21,6 +21,29 @@ import windlass.pins
 from argparse import ArgumentParser
 import logging
 import os
+
+
+def process(artifact, ns, **kwargs):
+    # Optimize building and pushing to registry in one call
+    if not ns.push_only:
+        if ns.download:
+            artifact.download(
+                version=ns.download_version,
+                docker_image_registry=ns.download_docker_registry,
+                charts_url=ns.download_charts_url,
+                generic_url=ns.download_generic_url,
+                **kwargs)
+        else:
+            artifact.build()
+
+    if not ns.no_push:
+        if not ns.build_only:
+            artifact.upload(
+                version=ns.push_version,
+                docker_image_registry=ns.push_docker_registry,
+                charts_url=ns.push_charts_url,
+                generic_url=ns.push_generic_url,
+                **kwargs)
 
 
 def main():
@@ -94,6 +117,10 @@ repository is located in the workspace then we don't try and check it out.
 If no workspace specified this defaults to the environmental variable
 WORKSPACE or else if that isn't present to your parent directory.''')
 
+    parser.add_argument('--pool-size', type=int,
+                        help='''Set size of the process pool. This is the
+amount of artifacts to process at any one time.''')
+
     ns = parser.parse_args()
 
     # Setup ns.workspace if it is not specified.
@@ -117,44 +144,22 @@ WORKSPACE or else if that isn't present to your parent directory.''')
     # artifacts from the configuration in this repository.
     if ns.product_integration_repo:
         artifacts = windlass.pins.read_pins(ns.product_integration_repo)
-        g = windlass.api.Windlass(artifacts=artifacts)
+        g = windlass.api.Windlass(artifacts=artifacts, pool_size=ns.pool_size)
     else:
-        g = windlass.api.Windlass(ns.products, workspace=ns.workspace)
-
-    def process(artifact, **kwargs):
-        # Optimize building and pushing to registry in one call
-        if not ns.push_only:
-            if ns.download:
-                artifact.download(
-                    version=ns.download_version,
-                    docker_image_registry=ns.download_docker_registry,
-                    charts_url=ns.download_charts_url,
-                    generic_url=ns.download_generic_url,
-                    **kwargs)
-            else:
-                artifact.build()
-
-        if not ns.no_push:
-            if not ns.build_only:
-                artifact.upload(
-                    version=ns.push_version,
-                    docker_image_registry=ns.push_docker_registry,
-                    charts_url=ns.push_charts_url,
-                    generic_url=ns.push_generic_url,
-                    **kwargs)
+        g = windlass.api.Windlass(
+            ns.products,
+            workspace=ns.workspace,
+            pool_size=ns.pool_size)
 
     docker_user = os.environ.get('DOCKER_USER', None)
     docker_password = os.environ.get('DOCKER_TOKEN', None)
 
-    try:
-        g.run(process,
-              parallel=not ns.no_parallel,
-              docker_user=docker_user,
-              docker_password=docker_password)
-        logging.info('Windlassed: %s', ','.join(ns.products))
-    except Exception:
-        logging.error('Failed to windlass: %s', ','.join(ns.products))
-        exit(1)
+    g.run(process,
+          ns=ns,
+          parallel=not ns.no_parallel,
+          docker_user=docker_user,
+          docker_password=docker_password)
+    logging.info('Windlassed: %s', ','.join(ns.products))
 
 
 if __name__ == '__main__':

@@ -1,5 +1,5 @@
 #
-# (c) Copyright 2017 Hewlett Packard Enterprise Development LP
+# (c) Copyright 2017-2018 Hewlett Packard Enterprise Development LP
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -362,12 +362,13 @@ class ArtifactoryRemote(windlass.api.Remote):
         # TODO(desbonne): Might make more sense to bring the connection
         # code directly into this class, but leaving external for the moment
         # (as HTTPBasicAuthConnector) to allow reusing ExceptionConnectors.
-        self.docker = ExceptionConnector(self, 'docker')
-        self.signature_connector = ExceptionConnector(self, 'signatures')
-        self.generic_connector = ExceptionConnector(self, 'generic')
+#        self.docker = ExceptionConnector(self, 'docker')
+        self.signature_connector = None
+        self.generic_connector = None
 
     def upload_docker(self, local_name, upload_name=None, upload_tag=None):
-        return self.docker.upload(local_name, upload_name, upload_tag)
+        raise windlass.api.NoValidRemoteError("Not implemented")
+#        return self.docker.upload(local_name, upload_name, upload_tag)
 
     def setup_signatures(self, url):
         self.signature_connector = HTTPBasicAuthConnector(
@@ -375,8 +376,11 @@ class ArtifactoryRemote(windlass.api.Remote):
         )
 
     def upload_signature(self, artifact_type, sig_name, sig_stream):
-        path = artifact_type + '/' + sig_name
-        return self.signature_connector.upload(path, sig_stream)
+        if self.signature_connector:
+            path = artifact_type + '/' + sig_name
+            return self.signature_connector.upload(path, sig_stream)
+        raise windlass.api.NoValidRemoteError(
+            "Not implemented - signature upload")
 
     def setup_generic(self, url, temp_path):
         self.generic_connector = HTTPBasicAuthConnector2Phase(
@@ -384,5 +388,7 @@ class ArtifactoryRemote(windlass.api.Remote):
         )
 
     def upload_generic(self, name, stream, properties):
-        return self.generic_connector.upload(
-            name, stream, properties=properties)
+        if self.generic_connector:
+            return self.generic_connector.upload(
+                name, stream, properties=properties)
+        raise windlass.api.NoValidRemoteError("Not implemented - generic upload")
