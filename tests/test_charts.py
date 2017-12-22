@@ -56,8 +56,10 @@ class TestCharts(testtools.TestCase):
             'zing/windlass:latest',
             '--debug --build-only products/test-chart.yml',
             remove=True,
-            user=os.getuid(),
-            volumes={self.tempdir.name: {'bind': self.tempdir.name}},
+            volumes={
+                '/var/run/docker.sock': {'bind': '/var/run/docker.sock'},
+                self.tempdir.name: {'bind': self.tempdir.name}
+            },
             working_dir=self.repodir,
             environment=windlass.tools.load_proxy())
 

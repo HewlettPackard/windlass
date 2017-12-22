@@ -14,7 +14,7 @@
 # under the License.
 #
 
-from docker import from_env
+import docker
 import windlass.api
 import windlass.tools
 from git import Repo
@@ -23,6 +23,11 @@ import multiprocessing
 import os
 
 import yaml
+
+
+client = docker.from_env(
+    version='auto',
+    timeout=180)
 
 
 def check_docker_stream(stream):
@@ -55,13 +60,12 @@ def check_docker_stream(stream):
 
 def push_image(imagename, push_tag='latest', auth_config=None):
     name = multiprocessing.current_process().name
-    docker = from_env(version='auto')
     logging.info('%s: Pushing as %s:%s', name, imagename, push_tag)
 
     # raises exception if imagename is missing
-    docker.images.get(imagename + ':' + push_tag)
+    client.images.get(imagename + ':' + push_tag)
 
-    output = docker.images.push(
+    output = client.images.push(
         imagename, push_tag, auth_config=auth_config,
         stream=True)
     check_docker_stream(output)
@@ -81,10 +85,9 @@ def clean_tag(tag):
 
 def build_verbosly(name, path, nocache=False, dockerfile=None,
                    pull=False):
-    docker = from_env(version='auto')
     bargs = windlass.tools.load_proxy()
     logging.info("Building %s from path %s", name, path)
-    stream = docker.api.build(path=path,
+    stream = client.api.build(path=path,
                               tag=name,
                               nocache=nocache,
                               buildargs=bargs,
@@ -107,7 +110,7 @@ def build_verbosly(name, path, nocache=False, dockerfile=None,
         logging.error('Output from building %s:\n%s', name, ''.join(output))
         raise Exception("Failed to build {}".format(name))
     logging.info("Successfully built %s from path %s", name, path)
-    return docker.images.get(name)
+    return client.images.get(name)
 
 
 def build_image_from_local_repo(repopath, imagepath, name, tags=[],
@@ -144,8 +147,6 @@ class Image(windlass.api.Artifact):
 
         self.devtag = data.get('devtag', devtag)
 
-        self.client = from_env(version='auto')
-
     def __repr__(self):
         return (
             "windlass.image.Image(data=dict(name='%s', version='%s',"
@@ -164,11 +165,11 @@ class Image(windlass.api.Artifact):
         """
         logging.info("%s: Pulling image from %s", imagename, remoteimage)
 
-        output = self.client.api.pull(remoteimage, stream=True)
+        output = client.api.pull(remoteimage, stream=True)
         check_docker_stream(output)
-        self.client.api.tag(remoteimage, imagename, tag)
+        client.api.tag(remoteimage, imagename, tag)
 
-        image = self.client.images.get('%s:%s' % (imagename, tag))
+        image = client.images.get('%s:%s' % (imagename, tag))
         return image
 
     def url(self, version=None, docker_image_registry=None, **kwargs):
@@ -226,11 +227,11 @@ class Image(windlass.api.Artifact):
 
         if tag != self.version:
             # Tag the image with the version but without the repository
-            self.client.api.tag(remoteimage, self.imagename, self.version)
+            client.api.tag(remoteimage, self.imagename, self.version)
 
         # Apply devtag to this image also. Note that not all artifacts
         # support a devtag
-        self.client.api.tag(remoteimage, self.imagename, self.devtag)
+        client.api.tag(remoteimage, self.imagename, self.devtag)
 
     def update_version(self, version):
         """Tag the image with a new version tag and update internal version.
@@ -242,7 +243,7 @@ class Image(windlass.api.Artifact):
                 "update_version(image): No version change (%s)", version
             )
             return
-        self.client.api.tag(
+        client.api.tag(
             '%s:%s' % (self.imagename, self.version),
             self.imagename, tag=version,
         )
@@ -293,22 +294,22 @@ class Image(windlass.api.Artifact):
 
         try:
             if docker_image_registry:
-                self.client.api.tag(local_fullname, upload_name, upload_tag)
+                client.api.tag(local_fullname, upload_name, upload_tag)
             push_image(upload_name, upload_tag, auth_config=auth_config)
         finally:
             if docker_image_registry:
-                self.client.api.remove_image(fullname)
+                client.api.remove_image(fullname)
 
         logging.info('%s: Successfully pushed', self.name)
 
     def export_stream(self, version=None):
         img_name = self.imagename + ':' + self.version
-        img = self.client.images.get(img_name)
+        img = client.images.get(img_name)
         return img.save().stream()
 
     def export(self, export_dir='.', export_name=None, version=None):
         img_name = self.imagename + ':' + self.version
-        img = self.client.images.get(img_name)
+        img = client.images.get(img_name)
         if export_name is None:
             ver = version or img.short_id[7:]
             export_name = "%s-%s.tar" % (self.name, ver)
@@ -324,7 +325,7 @@ class Image(windlass.api.Artifact):
     def export_signable(self, export_dir='.', export_name=None, version=None):
         """Write the image ID (sha256 hash) to the export file"""
         img_name = self.imagename + ':' + self.version
-        img = self.client.images.get(img_name)
+        img = client.images.get(img_name)
 
         if export_name is None:
             # img.short_id starts 'sha256:...' - strip the prefix.
