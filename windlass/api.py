@@ -412,18 +412,14 @@ class Windlass(object):
         self.pool_size = pool_size
 
         self._running = False
-        self._pool = None
         self._failed = False
 
     def _er_cb(self, result):
         # Runs in same process as the run method, but not the main thread
         logging.error("Error callback called processing artifacts")
-        self._failed = True
-        self._pool.terminate()
-        self._running = False
-        # This is an error, so raise this method. This won't kill the
-        # process as this is not in the main thread and is ignored.
-        raise result
+        # This is an error, so save the error so that we can raise
+        # it later. Provides more useful error handling
+        self._failed = result
 
     def run(self, processor, type=None, parallel=True, **kwargs):
         if self._running:
@@ -442,11 +438,11 @@ class Windlass(object):
         results = []
 
         self._failed = False
-        self._pool = multiprocessing.Pool(self.pool_size)
+        pool = multiprocessing.Pool(self.pool_size)
         for i in reversed(sorted(d.keys())):
             for artifact in d[i]:
                 if parallel:
-                    result = self._pool.apply_async(
+                    result = pool.apply_async(
                         processor,
                         args=(
                             artifact,
@@ -464,7 +460,7 @@ class Windlass(object):
                 result.artifact = artifact
                 results.append(result)
 
-            # _pool.join will not abort running jobs
+            # pool.join will not abort running jobs
             def finished():
                 return len([r for r in results if not r.ready()]) == 0
 
@@ -474,10 +470,15 @@ class Windlass(object):
                     if not result.ready():
                         result.wait(.2)
 
-            # The error callback was called. This set _running to False
-            # and terminated the pool of processes.
             if self._failed:
-                raise Exception('Failed to process artifacts')
+                # The error callback was called. This sets _running to the
+                # exception object raised by the process
+                # Wait for pool to terminate and then raise exception
+                logging.error("Terminating pool")
+                pool.terminate()
+                logging.debug("Pool terminated")
+                self._running = False
+                raise self._failed
 
         # Allow future calls to run on the same set of artifacts to work
         self._running = False
