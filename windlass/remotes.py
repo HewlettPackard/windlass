@@ -125,7 +125,7 @@ class ECRConnector(DockerConnector):
     Upload is always to the first path, if specified.
     """
     def __init__(self, creds, path_prefixes=None, repo_policy=None,
-                 test_ecrc=None):
+                 ecrc=None):
         self.creds = creds
         if path_prefixes is None:
             self.path_prefixes = ['']
@@ -135,24 +135,35 @@ class ECRConnector(DockerConnector):
             self.path_prefixes = path_prefixes
         self.new_repo_policy = repo_policy
         # Allow for specifying a test ECR client, for running tests.
-        if test_ecrc:
-            self.ecrc = test_ecrc
-        else:
-            self.ecrc = boto3.client(
-                'ecr', aws_access_key_id=self.creds.key_id,
-                aws_secret_access_key=self.creds.secret_key,
-                region_name=self.creds.region,
-            )
-        self.existing_repos = self._list_existing_repos()
+        self._ecrc = ecrc
+
+        self._existing_repos = None
+
         reg, user, passwd = self._docker_login()
         super().__init__([reg], user, passwd)
+
+    def get_ecrc(self):
+        return boto3.client(
+            'ecr', aws_access_key_id=self.creds.key_id,
+            aws_secret_access_key=self.creds.secret_key,
+            region_name=self.creds.region,
+        )
+
+    @property
+    def ecrc(self):
+        if not self._ecrc:
+            self._ecrc = self.get_ecrc()
+        return self._ecrc
 
     def _docker_login(self):
         """Get a docker login for the ECR registry
 
         Returns a <registry>, <username>, <password> 3-tuple.
         """
-        resp = self.ecrc.get_authorization_token()
+        # Since _docker_login is called in __init__ we can't access
+        # the self.ecrc property here as it will persist the ECR client
+        # on this object making it non-pickleable
+        resp = (self._ecrc or self.get_ecrc()).get_authorization_token()
         docker_reg_url = resp['authorizationData'][0]['proxyEndpoint']
         registry = urllib.parse.urlparse(docker_reg_url)[1]
         up = base64.b64decode(
@@ -170,6 +181,13 @@ class ECRConnector(DockerConnector):
                 set(r['repositoryName'] for r in page['repositories'])
             )
         return existing_repos
+
+    @property
+    def existing_repos(self):
+        if self._existing_repos is None:
+            self._existing_repos = self._list_existing_repos()
+
+        return self._existing_repos
 
     def _create_repo_if_new(self, image_name):
         if image_name in self.existing_repos:
@@ -215,36 +233,30 @@ class S3Connector(object):
         self.creds = creds
         self.bucket = bucket
         self.path_prefix = path_prefix or ''
-        key_id, secret_key, region = creds
-        self.s3c = boto3.client(
-            's3', region_name=region, aws_access_key_id=key_id,
-            aws_secret_access_key=secret_key,
-        )
+        self._s3c = None
 
     def _obj_url(self, upload_name):
         return 'https://%s.s3.amazonaws.com/%s%s' % (
             self.bucket, self.path_prefix, upload_name
         )
 
+    @property
+    def s3c(self):
+        if not self._s3c:
+            key_id, secret_key, region = self.creds
+            self._s3c = boto3.client(
+                's3',
+                region_name=region,
+                aws_access_key_id=key_id,
+                aws_secret_access_key=secret_key,
+            )
+        return self._s3c
+
     def upload(self, upload_name, stream):
         key = self.path_prefix + upload_name
         logging.info("Upload to s3://%s/%s", self.bucket, key)
         self.s3c.upload_fileobj(stream, self.bucket, key)
         return self._obj_url(upload_name)
-
-
-class ExceptionConnector(object):
-    """Raise a NoValidRemoteError exception on any access to obj."""
-    def __init__(self, remote, atype):
-        self.remote = remote
-        self.artifact_type = atype
-
-    def __getattr__(self, name):
-        raise windlass.api.NoValidRemoteError(
-            "No %s connector configured for %s" % (
-                self.remote, self.artifact_type
-            )
-        )
 
 
 class HTTPBasicAuthConnector(object):
@@ -322,9 +334,9 @@ class AWSRemote(windlass.api.Remote):
             secret_key or os.environ['AWS_SECRET_ACCESS_KEY'],
             region or os.environ.get('AWS_DEFAULT_REGION'),
         )
-        self.ecr = ExceptionConnector(self, 'docker')
-        self.signature_connector = ExceptionConnector(self, 'signatures')
-        self.generic_connector = ExceptionConnector(self, 'generic')
+        self.ecr = None
+        self.signature_connector = None
+        self.generic_connector = None
 
     def __str__(self):
         return "AWSRemote(region=%s, key_id=%s)" % (
@@ -335,7 +347,10 @@ class AWSRemote(windlass.api.Remote):
         self.ecr = ECRConnector(self.creds, path_prefixes, repo_policy)
 
     def upload_docker(self, local_name, upload_name=None, upload_tag=None):
-        return self.ecr.upload(local_name, upload_name, upload_tag)
+        if self.ecr:
+            return self.ecr.upload(local_name, upload_name, upload_tag)
+        raise windlass.api.NoValidRemoteError(
+            "No %s connector configured for docker" % self)
 
     def get_docker_upload_registry(self):
         return self.ecr.registry_list[0]
@@ -344,15 +359,21 @@ class AWSRemote(windlass.api.Remote):
         self.signature_connector = S3Connector(self.creds, bucket)
 
     def upload_signature(self, artifact_type, sig_name, sig_stream):
-        path = artifact_type + '/' + sig_name
-        return self.signature_connector.upload(path, sig_stream)
+        if self.signature_connector:
+            path = artifact_type + '/' + sig_name
+            return self.signature_connector.upload(path, sig_stream)
+        raise windlass.api.NoValidRemoteError(
+            "No %s connector configured for signatures" % self)
 
     def setup_generic(self, bucket, prefix=None):
         self.generic_connector = S3Connector(self.creds, bucket, prefix)
 
     def upload_generic(self, name, stream, properties={}):
-        # Ignore properties for AWS
-        return self.generic_connector.upload(name, stream)
+        if self.generic_connector:
+            # Ignore properties for AWS
+            return self.generic_connector.upload(name, stream)
+        raise windlass.api.NoValidRemoteError(
+            "No %s connector configured for generics" % self)
 
 
 class ArtifactoryRemote(windlass.api.Remote):
@@ -361,8 +382,8 @@ class ArtifactoryRemote(windlass.api.Remote):
         self.password = password
         # TODO(desbonne): Might make more sense to bring the connection
         # code directly into this class, but leaving external for the moment
-        # (as HTTPBasicAuthConnector) to allow reusing ExceptionConnectors.
-#        self.docker = ExceptionConnector(self, 'docker')
+        # (as HTTPBasicAuthConnector)
+#        self.docker = None
         self.signature_connector = None
         self.generic_connector = None
 
@@ -380,7 +401,7 @@ class ArtifactoryRemote(windlass.api.Remote):
             path = artifact_type + '/' + sig_name
             return self.signature_connector.upload(path, sig_stream)
         raise windlass.api.NoValidRemoteError(
-            "Not implemented - signature upload")
+            "No %s connector configured for signatures" % self)
 
     def setup_generic(self, url, temp_path):
         self.generic_connector = HTTPBasicAuthConnector2Phase(
@@ -391,4 +412,5 @@ class ArtifactoryRemote(windlass.api.Remote):
         if self.generic_connector:
             return self.generic_connector.upload(
                 name, stream, properties=properties)
-        raise windlass.api.NoValidRemoteError("Not implemented - generic upload")
+        raise windlass.api.NoValidRemoteError(
+            "No %s connector configured for generics" % self)

@@ -1,5 +1,5 @@
 #
-# (c) Copyright 2017 Hewlett Packard Enterprise Development LP
+# (c) Copyright 2017-2018 Hewlett Packard Enterprise Development LP
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -33,9 +33,7 @@ class TestECRConnector(testtools.TestCase):
         )
         self.stubber = botocore.stub.Stubber(tc)
         self.stubber.activate()
-        self.stubber.add_response(
-            'describe_repositories', {'repositories': []}, {}
-        )
+
         auth_resp = {'authorizationData': [{
             'proxyEndpoint': 'https://%s.dkr.ecr.%s.amazonaws.com' % (
                 aws_account, aws_region
@@ -46,14 +44,18 @@ class TestECRConnector(testtools.TestCase):
         }]}
         policy_stub = '{ "Statement": [{"Sid": "zing"}]}'
         self.stubber.add_response('get_authorization_token', auth_resp, {})
+
         self.connector = windlass.remotes.ECRConnector(
-            creds=None, repo_policy=policy_stub, test_ecrc=tc,
+            creds=None, repo_policy=policy_stub, ecrc=tc,
         )
         # Set the retry backoff time to 0 to speed up tests.
         windlass.remotes.global_retry_backoff = 0
 
     # Stub helper functions for various ecr operations.
     def _stub_create_repository(self, image_name):
+        self.stubber.add_response(
+            'describe_repositories', {'repositories': []}, {}
+        )
         inp = {'repositoryName': image_name}
         resp = {'repository': {
             'registryId': aws_account,
