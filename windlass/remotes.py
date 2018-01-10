@@ -15,6 +15,7 @@
 #
 import base64
 import boto3
+import botocore.exceptions
 import collections
 import docker
 import functools
@@ -155,6 +156,13 @@ class ECRConnector(DockerConnector):
             self._ecrc = self.get_ecrc()
         return self._ecrc
 
+    # Retry on ClientError exception.
+    # Specifically with a 'UnrecognizedClientException' but this does not
+    # seem to be determinable except by examining the exception message.
+    # This happens for a key_id that does not (yet) exist - e.g. just after
+    # vault creates an ephemeral credentials.  Longer backoff than usual to
+    # give AWS more time.
+    @remote_retry(retry_on=[botocore.exceptions.ClientError], retry_backoff=10)  # noqa
     def _docker_login(self):
         """Get a docker login for the ECR registry
 
