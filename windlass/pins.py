@@ -1,5 +1,5 @@
 #
-# (c) Copyright 2017 Hewlett Packard Enterprise Development LP
+# (c) Copyright 2017-2018 Hewlett Packard Enterprise Development LP
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -390,6 +390,128 @@ class GenericPins(Pins):
                             name=artifact,
                             **content)))
         return pins
+
+
+class OverrideUnknownArtifactException(Exception):
+    "Overridden Exception to get around pep8 issue."
+
+
+class OverrideYamlConfiguration(object):
+
+    def __init__(self, config, parent=None):
+        self.config = config
+        self.parent = parent
+
+    def write_pins(self, artifacts, version, repository, repodir, metadata={}):
+        """See windlass/tests/integrationrepo-override/products-integation.yaml
+
+        Write out yaml configuration based on the documentation in README.md
+        """
+        yaml = ruamel.yaml.YAML()
+        updated = []
+        for override, override_config in self.config.items():
+            if override == 'type':
+                continue
+
+            conf_file = override_config['file']
+            full_conf_file = os.path.join(repodir, conf_file)
+            artifacttype = import_class(override_config['artifacttype'])
+
+            filtered_artifacts = {}
+            for artifact in artifacts:
+                if isinstance(artifact, artifacttype):
+                    filtered_artifacts[artifact.name] = artifact.version
+
+            preamble = ''
+            try:
+                data = yaml.load(open(full_conf_file))
+            except FileNotFoundError:
+                basedir = os.path.dirname(full_conf_file)
+                os.makedirs(basedir, exist_ok=True)
+                data = {}
+            else:
+                # This is an edge case in ruamel.yaml. Here we have
+                # a comment (like a copyright) but the yaml file is
+                # empty. In that case data is None and so we just
+                # write out the contents that are their already, and
+                # treat this as a empty data.
+                if data is None:
+                    preamble = open(full_conf_file).read()
+                    data = {}
+
+            value = override_config['value']
+            for conf in value:
+                yamlpath = conf['yamlpath']
+                artifact = conf['version']
+
+                yamlpathlist = yamlpath.split('.')
+                conffield = yamlpathlist.pop()
+
+                subdata = data
+                for path in yamlpathlist:
+                    subdata = subdata[path]
+                try:
+                    version = filtered_artifacts[artifact]
+                except KeyError:
+                    raise OverrideUnknownArtifactException(
+                        'Trying to set unknown artifact version %s' % artifact)
+
+                subdata[conffield] = version
+
+                subdata.yaml_add_eol_comment(
+                    'This value is generated automatically by: %s' % (
+                        repository),
+                    conffield)
+
+            with open(full_conf_file, 'w') as fp:
+                fp.write(preamble)
+                yaml.dump(data, fp)
+
+            updated.append(conf_file)
+
+        return updated
+
+    def read_pins(self, repodir=None):
+        """From configuration read the pins and return set of artifacts
+
+        Some artifacts - like generic need to know the filename? attirbute
+        is we can't deduce from the override mechanism an Generic artifact
+        object that will work with the rest of the promotion. This will
+        require a fix to generics.
+
+        Instead assume that we will be using the corresponding GenericPins,
+        ImagePins or LandscaperPins in conjuction to the OverridePins
+        so that the artifacts are pushed to the correct repositories.
+        """
+        return []
+
+#        pins = []
+#        yaml = ruamel.yaml.YAML()
+#        for override, override_config in self.config.items():
+#            if override == 'type':
+#                continue
+
+#            full_conf_file = override_config['file']
+#            if repodir:
+#                full_conf_file = os.path.join(repodir, full_conf_file)
+#            artifacttype = import_class(override_config['artifacttype'])
+
+#            data = yaml.load(open(full_conf_file))
+
+#            value = override_config['value']
+#            for conf in value:
+#                yamlpath = conf['yamlpath']
+#                artifact = conf['version']
+
+#                subdata = data
+#                for path in yamlpath.split('.'):
+#                    subdata = subdata[path]
+
+#                pins.append(artifacttype(dict(
+#                    name=artifact,
+#                    version=subdata)))
+
+#        return pins
 
 
 def import_class(class_string):

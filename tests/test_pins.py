@@ -1,5 +1,5 @@
 #
-# (c) Copyright 2017 Hewlett Packard Enterprise Development LP
+# (c) Copyright 2017-2018 Hewlett Packard Enterprise Development LP
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -15,9 +15,11 @@
 #
 
 import windlass.charts
+import windlass.generic
 import windlass.images
 import windlass.pins
 import os.path
+import ruamel.yaml
 import shutil
 import tempfile
 import testtools
@@ -35,6 +37,117 @@ class TestPins(testtools.TestCase):
                                         'integrationrepo_rhs')
         shutil.copytree('./tests/integrationrepo', self.repodir)
         shutil.copytree('./tests/integrationrepo_rhs', self.repodir_rhs)
+
+        self.yaml = ruamel.yaml.YAML()
+
+    def test_write_override_yaml_configuration(self):
+        repodir = os.path.join(self.tempdir.name, 'override')
+        shutil.copytree('./tests/integrationrepo-override', repodir)
+
+        artifacts = [
+            windlass.generic.Generic(dict(
+                name='myapp4windows.tgz',
+                version='0.1')),
+            windlass.generic.Generic(dict(
+                name='myapp4macos',
+                version='0.1')),
+            windlass.charts.Chart(dict(
+                name='example1')),
+        ]
+
+        updated_files = windlass.pins.write_pins(
+            artifacts, '1.0.0', 'testing1', repodir, metadata={
+                'item': 'value'
+            })
+
+        self.assertEqual(updated_files, ['aws/api.yaml'])
+
+        data = self.yaml.load(open(os.path.join(repodir, 'aws/api.yaml')))
+        self.assertEqual(data, {
+            'configuration': {'my_app_mac': '0.1',
+                              'my_app_win': '0.1',
+                              # Not managed by the override pinning
+                              'image': {
+                                  'registry': 'somewhere'
+                              }}
+        })
+
+    def test_write_override_yaml_configuration_unknown_artifact(self):
+        repodir = os.path.join(self.tempdir.name, 'override')
+        shutil.copytree('./tests/integrationrepo-override', repodir)
+
+        conf = os.path.join(repodir, 'product-integration.yaml')
+        with open(conf, 'w') as fp:
+            fp.write("""---
+pins:
+  override:
+    type: OverrideYamlConfiguration
+    api:
+      file: aws/api.yaml
+      artifacttype: windlass.generic.Generic
+      value:
+        - yamlpath: 'configuration.my_app_win'
+          version: 'missingthingy'
+""")
+
+        artifacts = [
+            windlass.generic.Generic(dict(
+                name='myapp4windows.tgz',
+                version='0.1')),
+            windlass.charts.Chart(dict(
+                name='example1')),
+        ]
+
+        self.assertRaises(
+            windlass.pins.OverrideUnknownArtifactException,
+            windlass.pins.write_pins,
+            artifacts, '1.0.0', 'testing1', repodir, metadata={
+                'item': 'value'
+            })
+
+    def test_write_override_pins_missing_artifact(self):
+        repodir = os.path.join(self.tempdir.name, 'override')
+        shutil.copytree('./tests/integrationrepo-override', repodir)
+
+        conf = os.path.join(repodir, 'product-integration.yaml')
+        with open(conf, 'w') as fp:
+            fp.write("""---
+pins:
+  override:
+    type: windlass.pins.OverrideYamlConfiguration
+    api:
+      file: aws/api.yaml
+      artifacttype: windlass.generic.Generic
+      value:
+        - yamlpath: 'configuration.my_app_win'
+          version: 'INVALID'
+""")
+
+        artifacts = [
+            windlass.generic.Generic(dict(
+                name='myapp4windows.tgz',
+                version='0.1')),
+            windlass.charts.Chart(dict(
+                name='example1')),
+        ]
+
+        self.assertRaises(windlass.pins.OverrideUnknownArtifactException,
+                          windlass.pins.write_pins,
+                          artifacts, '1.0.0', 'testing1', repodir, metadata={
+                              'item': 'value'
+                          })
+
+    def test_read_override_pins(self):
+        repodir = os.path.join(self.tempdir.name, 'override')
+        shutil.copytree('./tests/integrationrepo-override', repodir)
+
+        artifacts = windlass.pins.read_pins(repodir)
+        self.assertEqual(len(artifacts), 0)
+        # self.assertEqual(len(artifacts), 2)
+        # self.assertEqual(artifacts[0].name, 'myapp4windows.tgz')
+        # self.assertEqual(artifacts[0].version, 'oldversion')
+        # self.assertEqual(artifacts[1].name, 'myapp4macos')
+        # self.assertEqual(artifacts[1].version, 'oldversion')
 
     def test_read_pins(self):
         artifacts = windlass.pins.read_pins(self.repodir)

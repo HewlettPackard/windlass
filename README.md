@@ -1,4 +1,4 @@
-(c) Copyright 2017 Hewlett Packard Enterprise Development LP
+(c) Copyright 2017-2018 Hewlett Packard Enterprise Development LP
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may
 not use this file except in compliance with the License. You may obtain
@@ -194,6 +194,13 @@ The format of the product integration test is dictionary of sections:
     # pins: is a dictionary sections used to control how we pin
     # artifacts.
     #
+    # It is made up of a dictionary of _sections_ that control how to
+    # write / read the pins. Each section knows how to handle certain
+    # artifacts and how to write out the metadata associated with the
+    # artifact include its version.
+    #
+    # The name of the section doesn't matter.
+    #
     pins:
       section1:
           # type: type tells us how this section will manage the pins.
@@ -201,45 +208,86 @@ The format of the product integration test is dictionary of sections:
           # Current choice of:
           # - ImagePins
           # - LandscaperPins
+          # - GenericPins
+          # - OverrideYamlConfiguration
           #
           # The choice of here can change default values of variables.
           #
-          type: ImagesPin
+          type: ImagePins
 
           #
-          # pins_dir: Context directory containing all the managed pins.
-          #
-          # Default: 'pins'
-          #
-          # Applies: all types.
-          #
-          pins_dir: 'pins'
-
-          #
-          # pins_files_globs: Location of pins
-          #
-          # Uses python 3 glob https://docs.python.org/3/library/glob.html
-          # module to iterate over all the configuration files.
-          #
-          # Applies: all types.
-          #
-          # Default: ['{pins_dir}/**/*.yaml']
+          # All other configuraion is specific to the Section type class,
+          # and is used to configure how this class writes out the pins.
+          # See below.
           #
 
-          #
-          # ignore: [] Ignore artifacts in set
-          #
-          # List of artifacts which we ignore for this section. That
-          # is we don't write out the pins for these artifacts.
-          #
+### ImagePins
 
-          #
-          # only: [] Only artifacts in set
-          #
-          # The only list of artifacts we write pins out for in this
-          # section. If a artifact is not in this section then it is
-          # not written out.
-          #
+TODO
+
+### LandscaperPins
+
+TODO
+
+### GenericPins
+
+TODO
+
+### OverrideYamlConfiguration
+
+This class allows us to set artifact version information directly into YAML
+configuration files.
+
+We specify the file, the artifact type and the values to override. For example
+to override the my\_app\_win and my\_app\_mac artifact version in an
+example landscaper file called aws/api.yaml we add the following configuration
+to the _product-integration.yaml_ file:
+
+    pins:
+
+      override:
+
+        type: OverrideYamlConfiguration
+
+        api_pins:  # reference name, just has to be unique
+          file: aws/api.yaml  # File to modify
+          artifacttype: windlass.generic.Generic  # Artifact types
+          value:  # How to override the data in aws/api.yaml
+            - yamlpath: 'configuration:my_app_win'
+              version: "myapp4windows.tgz"
+            - yamlpath: 'configuration.my_app_mac'
+              version: "myapp4macos.tgz"
+
+During promotion this will generate a change to the aws/api.yaml file where
+it will update the version of the configuration setting
+configuration.my\_app\_win and configuration.my\_app\_mac with
+the corresponding versions from the artifacts myapp4windows.tgz
+and myapp4macos.tgz
+
+Also you can specify multiple files to be updated. Just add a section with
+the file:, artifacttype: and value: fields.
+
+For example, starting with a landscaper file aws/api.yaml looking like this:
+
+    configuration:
+
+      image:
+        registry: somewhere
+
+      my_app_win: 0.71
+      my_app_mac: 0.71
+
+We land a change to my_org/my_app that will bump the version of the my_app
+to 0.72. After merging this change, and using the configuration above
+we will generate a promotion change that will change this file to:
+
+    configuration:
+
+      image:
+        registry: somewhere
+
+      my_app_win: 0.72  # This value is generated automatically by: my_org/my_app
+      my_app_mac: 0.72  # This value is generated automatically by: my_org/my_app
 
 
 ## Python API
