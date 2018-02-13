@@ -56,7 +56,7 @@ class TestPins(testtools.TestCase):
         ]
 
         updated_files = windlass.pins.write_pins(
-            artifacts, '1.0.0', 'testing1', repodir, metadata={
+            artifacts, 'testing1', repodir, metadata={
                 'item': 'value'
             })
 
@@ -101,7 +101,7 @@ pins:
         self.assertRaises(
             windlass.pins.OverrideUnknownArtifactException,
             windlass.pins.write_pins,
-            artifacts, '1.0.0', 'testing1', repodir, metadata={
+            artifacts, 'testing1', repodir, metadata={
                 'item': 'value'
             })
 
@@ -133,7 +133,7 @@ pins:
 
         self.assertRaises(windlass.pins.OverrideUnknownArtifactException,
                           windlass.pins.write_pins,
-                          artifacts, '1.0.0', 'testing1', repodir, metadata={
+                          artifacts, 'testing1', repodir, metadata={
                               'item': 'value'
                           })
 
@@ -208,14 +208,17 @@ pins:
     def test_write_chart_pins(self):
         artifacts = [
             windlass.charts.Chart(dict(
-                name='example1')),
+                name='example1',
+                version='1.0.0')),
             windlass.charts.Chart(dict(
-                name='example2')),
+                name='example2',
+                version='1.0.0')),
             windlass.charts.Chart(dict(
-                name='example3')),
+                name='example3',
+                version='1.0.0')),
             ]
         updated_files = windlass.pins.write_pins(
-            artifacts, '1.0.0', 'repo', self.repodir)
+            artifacts, 'repo', self.repodir)
         self.assertEqual(updated_files, [
             'region1/example1.yaml',
             'region1/example2.yaml',
@@ -259,10 +262,11 @@ pins:
     def test_write_image_pins(self):
         artifacts = [
             windlass.images.Image(dict(
-                name='some/image'))
+                name='some/image',
+                version='1.0.0'))
         ]
         updated_files = windlass.pins.write_pins(
-            artifacts, '1.0.0', 'testing1', self.repodir, metadata={
+            artifacts, 'testing1', self.repodir, metadata={
                 'item': 'value'
             })
         self.assertEqual(updated_files, ['image_pins/testing1.yaml'])

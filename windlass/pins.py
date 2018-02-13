@@ -123,9 +123,12 @@ class ImagePins(Pins):
         super().__init__(config, parent)
         self.key = self.config.get('key', 'images')
 
-    def write_pins(self, artifacts, version, repository, repodir, metadata={}):
+    def write_pins(self, artifacts, repository, repodir=None, metadata={}):
         pin_file = self.get_pin_file(repository)
-        full_pin_file = os.path.join(repodir, pin_file)
+        if repodir:
+            full_pin_file = os.path.join(repodir, pin_file)
+        else:
+            full_pin_file = pin_file
 
         preamble = ''
         try:
@@ -153,7 +156,7 @@ class ImagePins(Pins):
 
             if not isinstance(current_pins, dict):
                 pins[artifact.imagename] = current_pins = {}
-            current_pins['version'] = version
+            current_pins['version'] = artifact.version
             if artifact.devtag != current_pins.get('devtag', 'latest'):
                 current_pins['devtag'] = artifact.devtag
 
@@ -212,12 +215,15 @@ class LandscapePins(Pins):
     default_pin_file = '{pins_dir}/{name}.yaml'
     default_pins_files_globs = '{pins_dir}/*.yaml'
 
-    def write_pins(self, artifacts, version, repository, repodir, metadata={}):
+    def write_pins(self, artifacts, repository, repodir=None, metadata={}):
         written_files = []
         for artifact in self.iter_artifacts(
                 artifacts, artifacttype=windlass.charts.Chart):
             pin_file = self.get_pin_file(repository, name=artifact.name)
-            full_pin_file = os.path.join(repodir, pin_file)
+            if repodir:
+                full_pin_file = os.path.join(repodir, pin_file)
+            else:
+                full_pin_file = pin_file
 
             preamble = ''
             try:
@@ -250,8 +256,8 @@ class LandscapePins(Pins):
             if data.get('release', None) is None:
                 data['release'] = {}
 
-            data['release']['chart'] = '%s:%s' % (chartname, version)
-            data['release']['version'] = version
+            data['release']['chart'] = '%s:%s' % (chartname, artifact.version)
+            data['release']['version'] = artifact.version
 
             # Store metadata here.
             if metadata:
@@ -318,9 +324,12 @@ class GenericPins(Pins):
         super().__init__(config, parent)
         self.key = self.config.get('key', 'generic')
 
-    def write_pins(self, artifacts, version, repository, repodir, metadata={}):
+    def write_pins(self, artifacts, repository, repodir=None, metadata={}):
         pin_file = self.get_pin_file(repository)
-        full_pin_file = os.path.join(repodir, pin_file)
+        if repodir:
+            full_pin_file = os.path.join(repodir, pin_file)
+        else:
+            full_pin_file = pin_file
 
         preamble = ''
         try:
@@ -346,7 +355,7 @@ class GenericPins(Pins):
                 artifacts, artifacttype=windlass.generic.Generic):
             current_pins = pins.get(artifact.name, {})
 
-            current_pins['version'] = version
+            current_pins['version'] = artifact.version
             current_pins['filename'] = artifact.get_filename()
 
             # Update metadata
@@ -402,7 +411,7 @@ class OverrideYamlConfiguration(object):
         self.config = config
         self.parent = parent
 
-    def write_pins(self, artifacts, version, repository, repodir, metadata={}):
+    def write_pins(self, artifacts, repository, repodir=None, metadata={}):
         """See windlass/tests/integrationrepo-override/products-integation.yaml
 
         Write out yaml configuration based on the documentation in README.md
@@ -414,7 +423,10 @@ class OverrideYamlConfiguration(object):
                 continue
 
             conf_file = override_config['file']
-            full_conf_file = os.path.join(repodir, conf_file)
+            if repodir:
+                full_conf_file = os.path.join(repodir, conf_file)
+            else:
+                full_conf_file = conf_file
             artifacttype = import_class(override_config['artifacttype'])
 
             filtered_artifacts = {}
@@ -566,11 +578,11 @@ def parse_configuration_pins(repodir=None):
             yield pins
 
 
-def write_pins(artifacts, version, repository, repodir=None, metadata={}):
+def write_pins(artifacts, repository, repodir=None, metadata={}):
     written_files = []
     for pins in parse_configuration_pins(repodir):
         written_files.extend(
-            pins.write_pins(artifacts, version, repository, repodir, metadata))
+            pins.write_pins(artifacts, repository, repodir, metadata))
     return written_files
 
 
