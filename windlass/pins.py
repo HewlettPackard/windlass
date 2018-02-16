@@ -22,6 +22,7 @@ import windlass.tools
 import git
 import glob
 import importlib
+import jinja2
 import logging
 import os.path
 import ruamel.yaml
@@ -401,10 +402,6 @@ class GenericPins(Pins):
         return pins
 
 
-class OverrideUnknownArtifactException(Exception):
-    "Overridden Exception to get around pep8 issue."
-
-
 class OverrideYamlConfiguration(object):
 
     def __init__(self, config, parent=None):
@@ -432,7 +429,7 @@ class OverrideYamlConfiguration(object):
             filtered_artifacts = {}
             for artifact in artifacts:
                 if isinstance(artifact, artifacttype):
-                    filtered_artifacts[artifact.name] = artifact.version
+                    filtered_artifacts[artifact.name] = artifact
 
             preamble = ''
             try:
@@ -451,10 +448,10 @@ class OverrideYamlConfiguration(object):
                     preamble = open(full_conf_file).read()
                     data = {}
 
-            value = override_config['value']
+            value = override_config['values']
             for conf in value:
                 yamlpath = conf['yamlpath']
-                artifact = conf['version']
+                valuetemplate = conf['value']
 
                 yamlpathlist = yamlpath.split('.')
                 conffield = yamlpathlist.pop()
@@ -462,13 +459,9 @@ class OverrideYamlConfiguration(object):
                 subdata = data
                 for path in yamlpathlist:
                     subdata = subdata[path]
-                try:
-                    version = filtered_artifacts[artifact]
-                except KeyError:
-                    raise OverrideUnknownArtifactException(
-                        'Trying to set unknown artifact version %s' % artifact)
-
-                subdata[conffield] = version
+                value = jinja2.Template(valuetemplate).render(
+                    artifacts=filtered_artifacts)
+                subdata[conffield] = value
 
                 subdata.yaml_add_eol_comment(
                     'This value is generated automatically by: %s' % (

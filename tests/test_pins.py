@@ -18,6 +18,7 @@ import windlass.charts
 import windlass.generic
 import windlass.images
 import windlass.pins
+import jinja2.exceptions
 import os.path
 import ruamel.yaml
 import shutil
@@ -85,9 +86,9 @@ pins:
     api:
       file: aws/api.yaml
       artifacttype: windlass.generic.Generic
-      value:
+      values:
         - yamlpath: 'configuration.my_app_win'
-          version: 'missingthingy'
+          value: "{{ artifacts['missingthingy'].version }}"
 """)
 
         artifacts = [
@@ -99,43 +100,11 @@ pins:
         ]
 
         self.assertRaises(
-            windlass.pins.OverrideUnknownArtifactException,
+            jinja2.exceptions.UndefinedError,
             windlass.pins.write_pins,
             artifacts, 'testing1', repodir, metadata={
                 'item': 'value'
             })
-
-    def test_write_override_pins_missing_artifact(self):
-        repodir = os.path.join(self.tempdir.name, 'override')
-        shutil.copytree('./tests/integrationrepo-override', repodir)
-
-        conf = os.path.join(repodir, 'product-integration.yaml')
-        with open(conf, 'w') as fp:
-            fp.write("""---
-pins:
-  override:
-    type: windlass.pins.OverrideYamlConfiguration
-    api:
-      file: aws/api.yaml
-      artifacttype: windlass.generic.Generic
-      value:
-        - yamlpath: 'configuration.my_app_win'
-          version: 'INVALID'
-""")
-
-        artifacts = [
-            windlass.generic.Generic(dict(
-                name='myapp4windows.tgz',
-                version='0.1')),
-            windlass.charts.Chart(dict(
-                name='example1')),
-        ]
-
-        self.assertRaises(windlass.pins.OverrideUnknownArtifactException,
-                          windlass.pins.write_pins,
-                          artifacts, 'testing1', repodir, metadata={
-                              'item': 'value'
-                          })
 
     def test_read_override_pins(self):
         repodir = os.path.join(self.tempdir.name, 'override')

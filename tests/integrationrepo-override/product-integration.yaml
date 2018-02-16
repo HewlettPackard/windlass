@@ -25,9 +25,9 @@ pins:
     api:
       file: aws/api.yaml
       artifacttype: windlass.generic.Generic
-      value:
+      values:
         - yamlpath: 'configuration.my_app_win'
-          version: 'myapp4windows.tgz'
+          value: "{{ artifacts['myapp4windows.tgz'].version }}"
 
         - yamlpath: 'configuration.my_app_mac'
-          version: 'myapp4macos'
+          value: "{{ artifacts['myapp4macos'].version }}"
