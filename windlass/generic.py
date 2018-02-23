@@ -36,11 +36,22 @@ class Generic(windlass.api.Artifact):
 
     Upload artifact
     """
+
+    def __init__(self, data, actual_filename=None):
+        super().__init__(data)
+
+        # This is the filename of the artifact including the version of the
+        # artifact this is used when we read any generic artifact pins, or
+        # after download a versioned artifact from Artifactory.
+        self.actual_filename = actual_filename
+
     def __repr__(self):
         return (
             "windlass.generic.Generic(data=dict(name='%s', version='%s',"
             " filename='%s'))" % (
-                self.name, self.version, self.data.get('filename')
+                self.name,
+                self.version,
+                self.actual_filename or self.data.get('filename')
             )
         )
 
@@ -57,6 +68,9 @@ class Generic(windlass.api.Artifact):
         return result
 
     def get_filename(self):
+        if self.actual_filename is not None:
+            return self.actual_filename
+
         # Generic artifacts should be pinned to their filename so that we
         # get find them for promotion, etc.
         filename = self.data.get('filename')
@@ -85,7 +99,10 @@ class Generic(windlass.api.Artifact):
                                     verify='/etc/ssl/certs').json()['results']
             for item in uri_list:
                 artifact_name = item['uri'].split('/')[-1]
-                if fnmatch.fnmatch(artifact_name, self.data.get('filename')):
+                # TODO(kerrin) What does it mean if filename is None?
+                if fnmatch.fnmatch(
+                        artifact_name,
+                        self.actual_filename or self.data.get('filename')):
                     return requests.get(
                         item['uri'],
                         verify='/etc/ssl/certs'
@@ -94,7 +111,10 @@ class Generic(windlass.api.Artifact):
             msg = 'Could not find artifact %s with version %s in %s' % (
                 self.name, version, repo)
             raise Exception(msg)
+
         if generic_url:
+            # TODO(kerrin) Is this used for anything? I am not following the
+            # logic here
             return os.path.join(generic_url, artifact_name)
 
         return self.get_filename()

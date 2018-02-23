@@ -395,10 +395,15 @@ class GenericPins(Pins):
                             'Ignoring generic artifact %s for reading' % (
                                 artifact))
                         continue
+                    # Get the actual filename as recorded in the metadata
+                    filename = content.pop('filename', None)
                     pins.append(
-                        windlass.generic.Generic(dict(
-                            name=artifact,
-                            **content)))
+                        windlass.generic.Generic(
+                            dict(name=artifact,
+                                 **content),
+                            actual_filename=filename,
+                        )
+                    )
         return pins
 
 
