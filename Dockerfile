@@ -14,7 +14,7 @@
 # under the License.
 #
 
-FROM alpine:3.5
+FROM alpine:3.5 as base
 
 RUN set -e \
     && apk add --update --no-cache \
@@ -22,6 +22,10 @@ RUN set -e \
         docker \
         git \
         python3 \
+    ;
+
+FROM base as build
+RUN set -e \
     # Install development libraries for pip3 install later
     && apk add --update --no-cache --virtual .build-deps \
         python3-dev \
@@ -32,23 +36,25 @@ RUN set -e \
 ENV GIT_SSL_NO_VERIFY=
 
 RUN set -e \
-    && apk add --update --no-cache --virtual .download-deps \
+    && apk add --update --no-cache \
         curl \
     && curl -fSsLO https://storage.googleapis.com/kubernetes-helm/helm-v2.2.0-linux-amd64.tar.gz \
     && tar xf helm-v2.2.0-linux-amd64.tar.gz linux-amd64/helm -C /usr/local/bin --strip-components 1 \
-    && rm -f helm-v2.2.0-linux-amd64.tar.gz \
-    && apk del .download-deps \
-    && helm init -c \
     ;
 
-# This needs to correspond to Version field in METADATA
-ENV GATHER_VERSION=0.1.0
-
-COPY dist/windlass-${GATHER_VERSION}-py3-none-any.whl /
+ADD . /tmp/package
 
 RUN set -e \
-    && pip3 install --no-cache-dir \
-       windlass-${GATHER_VERSION}-py3-none-any.whl \
+    && pip3 install --prefix /usr/local --no-cache-dir /tmp/package \
+    ;
+
+FROM base
+
+ENV PYTHONPATH=/usr/local/lib/python3.5/site-packages
+COPY --from=build /usr/local /usr/local
+
+RUN set -e \
+    && helm init -c \
     ;
 
 VOLUME /var/run/docker.sock
