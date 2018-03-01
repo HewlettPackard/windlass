@@ -1,5 +1,5 @@
 #
-# (c) Copyright 2017 Hewlett Packard Enterprise Development LP
+# (c) Copyright 2017-2018 Hewlett Packard Enterprise Development LP
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -17,7 +17,7 @@ import os
 
 
 def load_proxy():
-    proxy_keys = ('http_proxy', 'https_proxy', 'no_proxy')
+    proxy_keys = ('http_proxy', 'https_proxy', 'no_proxy', 'all_proxy')
     return {key: os.environ[key] for key in proxy_keys if key in os.environ}
 
 
