@@ -1,5 +1,5 @@
 #
-# (c) Copyright 2017 Hewlett Packard Enterprise Development LP
+# (c) Copyright 2017-2018 Hewlett Packard Enterprise Development LP
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -34,13 +34,10 @@ ENV GIT_SSL_NO_VERIFY=
 RUN set -e \
     && apk add --update --no-cache --virtual .download-deps \
         curl \
-
     && curl -fSsLO https://storage.googleapis.com/kubernetes-helm/helm-v2.2.0-linux-amd64.tar.gz \
     && tar xf helm-v2.2.0-linux-amd64.tar.gz linux-amd64/helm -C /usr/local/bin --strip-components 1 \
     && rm -f helm-v2.2.0-linux-amd64.tar.gz \
-
     && apk del .download-deps \
-
     && helm init -c \
     ;
 
@@ -50,10 +47,8 @@ ENV GATHER_VERSION=0.1.0
 COPY dist/windlass-${GATHER_VERSION}-py3-none-any.whl /
 
 RUN set -e \
-
     && pip3 install --no-cache-dir \
        windlass-${GATHER_VERSION}-py3-none-any.whl \
-
     ;
 
 VOLUME /var/run/docker.sock
