@@ -17,7 +17,11 @@ import os
 
 
 def load_proxy():
-    proxy_keys = ('http_proxy', 'https_proxy', 'no_proxy', 'all_proxy')
+
+    # docker exposes all of these variables as build args
+    # except for all_proxy
+    proxy_keys = ('http_proxy', 'https_proxy',
+                  'no_proxy', 'all_proxy', 'ftp_proxy')
     return {key: os.environ[key] for key in proxy_keys if key in os.environ}
 
 
