@@ -1,5 +1,5 @@
 #
-# (c) Copyright 2017 Hewlett Packard Enterprise Development LP
+# (c) Copyright 2017-2018 Hewlett Packard Enterprise Development LP
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -270,6 +270,14 @@ class Chart(windlass.api.Artifact):
                         resp.status_code, upload_chart_url))
 
             logging.info('%s: Successfully pushed chart' % self.name)
+
+    @windlass.api.fall_back('charts_url')
+    def delete(self, version=None, charts_url=None, **kwargs):
+        chart_url = self.url(version or self.version, charts_url)
+        try:
+            os.remove(os.path.basename(chart_url))
+        except FileNotFoundError:
+            pass
 
     def export_stream(self, version=None):
         local_version = self.version or self.get_local_version()
