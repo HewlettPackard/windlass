@@ -18,7 +18,6 @@ import windlass.charts
 import windlass.generic
 import windlass.images
 import windlass.pins
-import jinja2.exceptions
 import os.path
 import ruamel.yaml
 import shutil
@@ -99,12 +98,14 @@ pins:
                 name='example1')),
         ]
 
-        self.assertRaises(
-            jinja2.exceptions.UndefinedError,
-            windlass.pins.write_pins,
+        updated_files = windlass.pins.write_pins(
             artifacts, 'testing1', repodir, metadata={
                 'item': 'value'
             })
+
+        # In this case we have not overriden the yaml configuration
+        # as we have not updated an artifact
+        self.assertEqual(updated_files, [])
 
     def test_read_override_pins(self):
         repodir = os.path.join(self.tempdir.name, 'override')
