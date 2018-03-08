@@ -453,10 +453,19 @@ class OverrideYamlConfiguration(object):
                     preamble = open(full_conf_file).read()
                     data = {}
 
-            value = override_config['values']
-            for conf in value:
+            updatedfile = False
+            values = override_config['values']
+            for conf in values:
                 yamlpath = conf['yamlpath']
                 valuetemplate = conf['value']
+                try:
+                    value = jinja2.Template(valuetemplate).render(
+                        artifacts=filtered_artifacts)
+                except jinja2.exceptions.UndefinedError as e:
+                    logging.debug(
+                        "Undefined error '%s' rendering '%s', skipping." % (
+                            e.message, valuetemplate))
+                    continue
 
                 yamlpathlist = yamlpath.split('.')
                 conffield = yamlpathlist.pop()
@@ -464,20 +473,24 @@ class OverrideYamlConfiguration(object):
                 subdata = data
                 for path in yamlpathlist:
                     subdata = subdata[path]
-                value = jinja2.Template(valuetemplate).render(
-                    artifacts=filtered_artifacts)
+
+                changed = subdata[conffield] != value
+
                 subdata[conffield] = value
 
-                subdata.yaml_add_eol_comment(
-                    'This value is generated automatically by: %s' % (
-                        repository),
-                    conffield)
+                if changed:
+                    updatedfile = True
+                    subdata.yaml_add_eol_comment(
+                        'This value is generated automatically by: %s' % (
+                            repository),
+                        conffield)
 
-            with open(full_conf_file, 'w') as fp:
-                fp.write(preamble)
-                yaml.dump(data, fp)
+            if updatedfile:
+                with open(full_conf_file, 'w') as fp:
+                    fp.write(preamble)
+                    yaml.dump(data, fp)
 
-            updated.append(conf_file)
+                updated.append(conf_file)
 
         return updated
 
