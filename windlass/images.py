@@ -221,8 +221,6 @@ class Image(windlass.api.Artifact):
                 '%s/%s:%s' % (docker_image_registry, self.imagename, tag))
         self._delete_image('%s:%s' % (self.imagename, tag))
 
-        self._delete_image('%s:%s' % (self.imagename, self.devtag))
-
     @windlass.api.retry()
     @windlass.api.fall_back('docker_image_registry')
     def download(self, version=None, docker_image_registry=None, **kwargs):
