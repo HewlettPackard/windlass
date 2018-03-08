@@ -195,6 +195,14 @@ class Generic(windlass.api.Artifact):
 
         logging.info('%s: Successfully pushed artifact' % self.name)
 
+    @windlass.api.fall_back('generic_url')
+    def delete(self, version=None, generic_url=None, **kwargs):
+        artifact_url = self.url(version or self.version, generic_url)
+        try:
+            os.remove(os.path.basename(artifact_url))
+        except FileNotFoundError:
+            pass
+
     def export_stream(self, version=None):
         return open(self.get_filename(), 'rb')
 

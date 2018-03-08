@@ -110,6 +110,14 @@ class Artifact(object):
         """
         raise NotImplementedError('upload not implemented')
 
+    def delete(self, version=None, **kwargs):
+        """Delete any downloaded artifacts on the host
+
+        This should not throw an error if the artifact already doesn't
+        on this host this runs on.
+        """
+        raise NotImplementedError('delete not implemented')
+
     def update_version(self, version):
         """Update an artifact's version, rewriting it if necessary"""
         # Make the default behaviour same as set_version()
@@ -534,6 +542,14 @@ class Windlass(object):
             version=version,
             **kwargs)
 
+    def delete(self, version=None, type=None, parallel=False, **kwargs):
+        return self.run(
+            _delete_artifact,
+            type=type,
+            parallel=parallel,
+            version=version,
+            **kwargs)
+
 
 def _build_artifact(artifact):
     return artifact.build()
@@ -547,6 +563,10 @@ def _upload_artifact(artifact, version=None, **kwargs):
     return artifact.upload(version=version, **kwargs)
 
 
+def _delete_artifact(artifact, version=None, **kwargs):
+    return artifact.delete(version=version, **kwargs)
+
+
 def download(artifacts, parallel=True, **kwargs):
     g = Windlass(artifacts=artifacts)
     return g.download(parallel=parallel, **kwargs)
@@ -555,6 +575,11 @@ def download(artifacts, parallel=True, **kwargs):
 def upload(artifacts, parallel=True, **kwargs):
     g = Windlass(artifacts=artifacts)
     return g.upload(parallel=parallel, **kwargs)
+
+
+def delete(artifacts, parallel=False, **kwargs):
+    g = Windlass(artifacts=artifacts)
+    return g.delete(parallel=parallel, **kwargs)
 
 
 def setupLogging(debug=False):

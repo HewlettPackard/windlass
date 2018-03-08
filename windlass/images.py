@@ -1,5 +1,5 @@
 #
-# (c) Copyright 2017 Hewlett Packard Enterprise Development LP
+# (c) Copyright 2017-2018 Hewlett Packard Enterprise Development LP
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -204,6 +204,24 @@ class Image(windlass.api.Artifact):
                                         dockerfile=dockerfile,
                                         pull=True)
             logging.info('Get image %s completed', image_def['name'])
+
+    def _delete_image(self, image):
+        try:
+            client.api.remove_image(image)
+        except docker.errors.ImageNotFound:
+            # Image isn't on system so no worries
+            pass
+
+    @windlass.api.fall_back('docker_image_registry')
+    def delete(self, version=None, docker_image_registry=None, **kwargs):
+        tag = version or self.version
+
+        if docker_image_registry:
+            self._delete_image(
+                '%s/%s:%s' % (docker_image_registry, self.imagename, tag))
+        self._delete_image('%s:%s' % (self.imagename, tag))
+
+        self._delete_image('%s:%s' % (self.imagename, self.devtag))
 
     @windlass.api.retry()
     @windlass.api.fall_back('docker_image_registry')

@@ -137,6 +137,8 @@ amount of artifacts to process at any one time.''')
         ns.download_docker_registry = ns.download_docker_registry[1:]
     if len(ns.download_charts_url) > 1:
         ns.download_charts_url = ns.download_charts_url[1:]
+    if len(ns.download_generic_url) > 1:
+        ns.download_generic_url = ns.download_generic_url[1:]
 
     windlass.api.setupLogging(ns.debug)
 
