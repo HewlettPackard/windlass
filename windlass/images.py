@@ -25,11 +25,6 @@ import os
 import yaml
 
 
-client = docker.from_env(
-    version='auto',
-    timeout=180)
-
-
 def check_docker_stream(stream):
     # Read output from docker command and raise exception
     # if docker hit an error processing the command.
@@ -59,6 +54,9 @@ def check_docker_stream(stream):
 
 
 def push_image(imagename, push_tag='latest', auth_config=None):
+    client = docker.from_env(
+        version='auto',
+        timeout=180)
     name = multiprocessing.current_process().name
     logging.info('%s: Pushing as %s:%s', name, imagename, push_tag)
 
@@ -85,6 +83,9 @@ def clean_tag(tag):
 
 def build_verbosly(name, path, nocache=False, dockerfile=None,
                    pull=False):
+    client = docker.from_env(
+        version='auto',
+        timeout=180)
     bargs = windlass.tools.load_proxy()
     logging.info("Building %s from path %s", name, path)
     stream = client.api.build(path=path,
@@ -163,6 +164,9 @@ class Image(windlass.api.Artifact):
 
         And tag it with the imagename and tag.
         """
+        client = docker.from_env(
+            version='auto',
+            timeout=180)
         logging.info("%s: Pulling image from %s", imagename, remoteimage)
 
         output = client.api.pull(remoteimage, stream=True)
@@ -206,6 +210,9 @@ class Image(windlass.api.Artifact):
             logging.info('Get image %s completed', image_def['name'])
 
     def _delete_image(self, image):
+        client = docker.from_env(
+            version='auto',
+            timeout=180)
         try:
             client.api.remove_image(image)
         except docker.errors.ImageNotFound:
@@ -224,6 +231,9 @@ class Image(windlass.api.Artifact):
     @windlass.api.retry()
     @windlass.api.fall_back('docker_image_registry')
     def download(self, version=None, docker_image_registry=None, **kwargs):
+        client = docker.from_env(
+            version='auto',
+            timeout=180)
         if version is None and self.version is None:
             raise Exception('Must specify version of image to download.')
 
@@ -254,6 +264,9 @@ class Image(windlass.api.Artifact):
 
         Does not attempt to remove the old version tag.
         """
+        client = docker.from_env(
+            version='auto',
+            timeout=180)
         if version == self.version:
             logging.debug(
                 "update_version(image): No version change (%s)", version
@@ -270,6 +283,9 @@ class Image(windlass.api.Artifact):
     def upload(self, version=None, docker_image_registry=None,
                docker_user=None, docker_password=None,
                **kwargs):
+        client = docker.from_env(
+            version='auto',
+            timeout=180)
         # Start to phase out passing of version to upload.
         if version != self.version:
             logging.warning(
@@ -319,11 +335,17 @@ class Image(windlass.api.Artifact):
         logging.info('%s: Successfully pushed', self.name)
 
     def export_stream(self, version=None):
+        client = docker.from_env(
+            version='auto',
+            timeout=180)
         img_name = self.imagename + ':' + self.version
         img = client.images.get(img_name)
         return img.save().stream()
 
     def export(self, export_dir='.', export_name=None, version=None):
+        client = docker.from_env(
+            version='auto',
+            timeout=180)
         img_name = self.imagename + ':' + self.version
         img = client.images.get(img_name)
         if export_name is None:
@@ -340,6 +362,9 @@ class Image(windlass.api.Artifact):
 
     def export_signable(self, export_dir='.', export_name=None, version=None):
         """Write the image ID (sha256 hash) to the export file"""
+        client = docker.from_env(
+            version='auto',
+            timeout=180)
         img_name = self.imagename + ':' + self.version
         img = client.images.get(img_name)
 
