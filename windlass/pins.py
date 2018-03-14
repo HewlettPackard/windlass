@@ -474,7 +474,7 @@ class OverrideYamlConfiguration(object):
                 for path in yamlpathlist:
                     subdata = subdata[path]
 
-                changed = subdata[conffield] != value
+                changed = subdata.get(conffield, object()) != value
 
                 subdata[conffield] = value
 
