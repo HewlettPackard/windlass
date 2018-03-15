@@ -82,7 +82,7 @@ def clean_tag(tag):
 
 
 def build_verbosly(name, path, nocache=False, dockerfile=None,
-                   pull=False):
+                   pull=True):
     client = docker.from_env(
         version='auto',
         timeout=180)
@@ -115,12 +115,15 @@ def build_verbosly(name, path, nocache=False, dockerfile=None,
 
 
 def build_image_from_local_repo(repopath, imagepath, name, tags=[],
-                                nocache=False, dockerfile=None, pull=False):
+                                nocache=False, dockerfile=None, pull=True):
     logging.info('%s: Building image from local directory %s',
                  name, os.path.join(repopath, imagepath))
     repo = Repo(repopath)
-    image = build_verbosly(name, os.path.join(repopath, imagepath),
-                           nocache=nocache, dockerfile=dockerfile)
+    image = build_verbosly(name,
+                           os.path.join(repopath, imagepath),
+                           nocache=nocache,
+                           dockerfile=dockerfile,
+                           pull=pull)
     if repo.head.is_detached:
         commit = repo.head.commit.hexsha
     else:
