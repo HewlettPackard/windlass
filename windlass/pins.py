@@ -562,12 +562,12 @@ def read_configuration(repodir=None):
         if configuration in repodir.tree:
             stream = (repodir.tree/configuration).data_stream
         else:
-            raise RuntimeError('%s does not exist' % (configuration))
+            return {}
     else:
         if repodir:
             configuration = os.path.join(repodir, configuration)
             if not os.path.exists(configuration):
-                raise RuntimeError('%s does not exist' % (configuration))
+                return {}
         stream = open(configuration)
     configuration_data = ruamel.yaml.load(
         stream, Loader=ruamel.yaml.RoundTripLoader)
