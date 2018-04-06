@@ -57,7 +57,7 @@ class Generic(windlass.api.Artifact):
 
     def __str__(self):
         result = "<Generic artifact %s version %s" % (self.name, self.version)
-        fname = self.data.get('filename')
+        fname = self.actual_filename or self.data.get('filename')
         if '*' in fname or '?' in fname:
             try:
                 result += ' stored in %s>' % (self.get_filename())
