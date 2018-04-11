@@ -258,7 +258,6 @@ class LandscapePins(Pins):
                 data['release'] = {}
 
             data['release']['chart'] = '%s:%s' % (chartname, artifact.version)
-            data['release']['version'] = artifact.version
 
             # Store metadata here.
             if metadata:
@@ -286,11 +285,6 @@ class LandscapePins(Pins):
             metadata = data.get('zing-metadata')
             chart = release['chart']
             chart, version = chart.split(':', 1)
-            chart_version = release.get('version', version)
-            if version != chart_version:
-                raise RuntimeError(
-                    'Conflicting chart version for chart %s' % chart)
-
             chart_name = chart.split('/', 1)[-1]
 
             if chart_name in ignore:

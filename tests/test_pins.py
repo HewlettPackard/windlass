@@ -171,9 +171,12 @@ pins:
         n = [x for x in artifacts if x['rhs'] and x['lhs']]
         sorted_updates = sorted(n, key=lambda k: k['name'])
 
-        self.assertEqual(sorted_updates[0]['name'], 'some/image')
-        self.assertEqual(sorted_updates[0]['lhs'].version, 12345)
-        self.assertEqual(sorted_updates[0]['rhs'].version, 12346)
+        self.assertEqual(sorted_updates[0]['name'], 'example1')
+        self.assertEqual(sorted_updates[0]['lhs'].version, '0.0.1')
+        self.assertEqual(sorted_updates[0]['rhs'].version, '0.0.2')
+        self.assertEqual(sorted_updates[1]['name'], 'some/image')
+        self.assertEqual(sorted_updates[1]['lhs'].version, 12345)
+        self.assertEqual(sorted_updates[1]['rhs'].version, 12346)
 
     def test_write_chart_pins(self):
         artifacts = [
@@ -201,33 +204,27 @@ pins:
             open(os.path.join(self.repodir, 'region1', 'example1.yaml')))
         self.assertEqual(
             region1data1['release']['chart'], 'staging-charts/example1:1.0.0')
-        self.assertEqual(region1data1['release']['version'], '1.0.0')
         region1data2 = yaml.safe_load(
             open(os.path.join(self.repodir, 'region1', 'example2.yaml')))
         self.assertEqual(
             region1data2['release']['chart'], 'example2:1.0.0')
-        self.assertEqual(region1data2['release']['version'], '1.0.0')
         region1data3 = yaml.safe_load(
             open(os.path.join(self.repodir, 'region1', 'example3.yaml')))
         self.assertEqual(
             region1data3['release']['chart'], 'example3:1.0.0')
-        self.assertEqual(region1data3['release']['version'], '1.0.0')
 
         # Region2 doesn't know about the helm repository.
         region2data = yaml.safe_load(
             open(os.path.join(self.repodir, 'region2', 'example1.yaml')))
         self.assertEqual(region2data['release']['chart'], 'example1:1.0.0')
-        self.assertEqual(region2data['release']['version'], '1.0.0')
         region2data2 = yaml.safe_load(
             open(os.path.join(self.repodir, 'region2', 'example2.yaml')))
         self.assertEqual(
             region2data2['release']['chart'], 'example2:1.0.0')
-        self.assertEqual(region2data2['release']['version'], '1.0.0')
         region2data3 = yaml.safe_load(
             open(os.path.join(self.repodir, 'region2', 'example3.yaml')))
         self.assertEqual(
             region2data3['release']['chart'], 'example3:1.0.0')
-        self.assertEqual(region2data3['release']['version'], '1.0.0')
 
     def test_write_image_pins(self):
         artifacts = [
