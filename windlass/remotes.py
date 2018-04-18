@@ -162,7 +162,7 @@ class ECRConnector(DockerConnector):
     # This happens for a key_id that does not (yet) exist - e.g. just after
     # vault creates an ephemeral credentials.  Longer backoff than usual to
     # give AWS more time.
-    @remote_retry(retry_on=[botocore.exceptions.ClientError], retry_backoff=10)  # noqa
+    @remote_retry(retry_on=[botocore.exceptions.ClientError], max_retries=5, retry_backoff=30)  # noqa
     def _docker_login(self):
         """Get a docker login for the ECR registry
 
