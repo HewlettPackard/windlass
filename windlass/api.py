@@ -150,17 +150,20 @@ class Artifact(object):
 
 class Artifacts(object):
 
-    def __init__(self, products_to_parse=None, workspace=None):
+    def __init__(self, products_to_parse=None, workspace=None, artifacts=None):
         if not products_to_parse:
             products_to_parse = DEFAULT_PRODUCT_FILES
         self.data = {}
         self.tempdir = tempfile.mkdtemp()
 
-        self.items = self.load(
-            products_to_parse,
-            workspace=workspace,
-            # Default metadata to assign to arifacts
-            repopath=os.path.abspath('.'))
+        if artifacts:
+            self.items = artifacts
+        else:
+            self.items = self.load(
+                products_to_parse,
+                workspace=workspace,
+                # Default metadata to assign to arifacts
+                repopath=os.path.abspath('.'))
 
     def __del__(self):
         if os.path.exists(self.tempdir):
@@ -549,6 +552,17 @@ class Windlass(object):
             parallel=parallel,
             version=version,
             **kwargs)
+
+    def filter_artifacts(self, filter_func):
+        """Filter the artifacts list based on the supplied filter function.
+
+        The filter_func parameter must be a callable object, and this is called
+        for each artifact.  Those artifacts for which the function returns
+        True are kept and the others dropped.
+        """
+        self.artifacts.items = [
+            i for i in self.artifacts.items if filter_func(i)
+        ]
 
 
 def _build_artifact(artifact):
