@@ -345,6 +345,7 @@ class AWSRemote(windlass.api.Remote):
         self.ecr = None
         self.signature_connector = None
         self.generic_connector = None
+        self.charts_connector = None
 
     def __str__(self):
         return "AWSRemote(region=%s, key_id=%s)" % (
@@ -382,6 +383,16 @@ class AWSRemote(windlass.api.Remote):
             return self.generic_connector.upload(name, stream)
         raise windlass.api.NoValidRemoteError(
             "No %s connector configured for generics" % self)
+
+    def setup_charts(self, bucket, prefix=None):
+        self.charts_connector = S3Connector(self.creds, bucket, prefix)
+
+    def upload_chart(self, name, stream, properties={}):
+        if self.charts_connector:
+            # Ignore properties for AWS
+            return self.charts_connector.upload(name, stream)
+        raise windlass.api.NoValidRemoteError(
+            "No %s connector configured for charts" % self)
 
 
 class ArtifactoryRemote(windlass.api.Remote):
@@ -422,3 +433,11 @@ class ArtifactoryRemote(windlass.api.Remote):
                 name, stream, properties=properties)
         raise windlass.api.NoValidRemoteError(
             "No %s connector configured for generics" % self)
+
+    # No setup_charts() method because charts are not supported here, but
+    # implement a stub upload_chart() to allow fallthru to the upload
+    # code in charts.Chart.upload()
+    def upload_chart(self, name, stream, properties):
+        raise windlass.api.NoValidRemoteError(
+            "No %s connector configured for charts" % self
+        )

@@ -1,5 +1,5 @@
 #
-# (c) Copyright 2017 Hewlett Packard Enterprise Development LP
+# (c) Copyright 2017-2018 Hewlett Packard Enterprise Development LP
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -30,6 +30,25 @@ import yaml
 
 class TestCharts(testtools.TestCase):
 
+    def _build_chart(self):
+        """Build the test chart.
+
+        Returns a windlass.charts.Chart object for the chart.
+        """
+        self.client.containers.run(
+            'zing/windlass:latest',
+            '--debug --build-only products/test-chart.yml',
+            remove=True,
+            volumes={
+                '/var/run/docker.sock': {'bind': '/var/run/docker.sock'},
+                self.tempdir.name: {'bind': self.tempdir.name}
+            },
+            working_dir=self.repodir,
+            environment=windlass.tools.load_proxy())
+        products = yaml.load(
+            open(os.path.join(self.repodir, 'products/test-chart.yml')))
+        return windlass.charts.Chart(products['charts'][0])
+
     def setUp(self):
         super().setUp()
         self.client = docker.from_env(version='auto')
@@ -39,6 +58,7 @@ class TestCharts(testtools.TestCase):
         self.repo = git.Repo.init(self.repodir)
         self.repo.git.add('-A')
         self.commitid = self.repo.index.commit('Commit 1').hexsha
+        self.chart = self._build_chart()
 
         # Change to the repo directory so that the package_chart command
         # can find the generated chart and work
@@ -50,23 +70,6 @@ class TestCharts(testtools.TestCase):
         super().tearDown()
 
     def test_package_charts(self):
-        # This required to be built, and latest. This has the helm
-        # package installed in order to build the helm package.
-        self.client.containers.run(
-            'zing/windlass:latest',
-            '--debug --build-only products/test-chart.yml',
-            remove=True,
-            volumes={
-                '/var/run/docker.sock': {'bind': '/var/run/docker.sock'},
-                self.tempdir.name: {'bind': self.tempdir.name}
-            },
-            working_dir=self.repodir,
-            environment=windlass.tools.load_proxy())
-
-        products = yaml.load(
-            open(os.path.join(self.repodir, 'products/test-chart.yml')))
-        chart = windlass.charts.Chart(products['charts'][0])
-
         # Test chart
         stream = open(os.path.join(self.repodir, 'ubuntu-0.0.1.tgz'), 'rb')
         tar = tarfile.open(fileobj=stream, mode='r:gz')
@@ -78,7 +81,7 @@ class TestCharts(testtools.TestCase):
         self.assertEqual(values_data['image']['tag'], '16.04')
 
         # Package the chart as -> 2.1.0 for publication
-        data = chart.package_chart('0.0.1', '2.1.0', registry='reg')
+        data = self.chart.package_chart('0.0.1', '2.1.0', registry='reg')
 
         # Test the output.
         stream = io.BytesIO(data)
@@ -90,3 +93,19 @@ class TestCharts(testtools.TestCase):
         self.assertEqual(values_data['image']['repository'], 'ubuntu')
         self.assertEqual(values_data['image']['registry'], 'reg')
         self.assertEqual(values_data['image']['tag'], '2.1.0')
+
+    def test_upload_fallthrough_artifactory_remote(self):
+        """Test hook into remote-based chart upload wont break Artifactory."""
+
+        # Test that chart upload correctly falls through to the old
+        # (non-remote based) upload code, when passed an artifactory remote.
+        # Do this by expecting the exception that occurs in the old code when
+        # the bogus url fails.
+
+        remote = windlass.remotes.ArtifactoryRemote(username=None, password=None)
+
+        with self.assertRaisesRegex(Exception,
+                                    'Invalid URL.*No schema supplied.'):
+            self.chart.upload(
+                charts_url='bogus', docker_image_registry='', remote=remote
+            )

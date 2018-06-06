@@ -207,6 +207,17 @@ class Chart(windlass.api.Artifact):
                docker_user=None, docker_password=None,
                docker_image_registry=None,
                **kwargs):
+        if 'remote' in kwargs:
+            try:
+                return kwargs['remote'].upload_chart(
+                    self.get_chart_name(version or self.version),
+                    self.export_stream(), properties={}
+                )
+            except windlass.api.NoValidRemoteError:
+                # Fall thru to old upload code.
+                logging.debug(
+                    "No charts endpoint configured for %s", kwargs['remote']
+                )
         # TODO(kerrin) can we reuse the docker_* credentials like this,
         # it works for artifactory, not sure about AWS.
         if not charts_url:

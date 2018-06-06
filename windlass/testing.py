@@ -75,6 +75,11 @@ class FakeECRConnector(windlass.remotes.ECRConnector):
         return upload_url
 
 
+class FakeS3Connector(windlass.remotes.S3Connector):
+    def upload(self, upload_name, stream):
+        return self._obj_url(upload_name)
+
+
 class FakeAWSRemote(windlass.remotes.AWSRemote):
 
     def setup_docker(self, *args, **kwargs):
@@ -82,6 +87,12 @@ class FakeAWSRemote(windlass.remotes.AWSRemote):
         windlass.remotes.ECRConnector = FakeECRConnector
         super().setup_docker(*args, **kwargs)
         windlass.remotes.ECRConnector = save_ecrconnector_class
+
+    def setup_charts(self, *args, **kwargs):
+        save_s3connector_class = windlass.remotes.S3Connector
+        windlass.remotes.S3Connector = FakeS3Connector
+        super().setup_charts(*args, **kwargs)
+        windlass.remotes.S3Connector = save_s3connector_class
 
 
 @contextlib.contextmanager
