@@ -33,8 +33,8 @@ class TestAPI(testtools.TestCase):
             artifacts=windlass.api.Artifacts(artifacts=artifacts)
         )
 
-    def test_filter_artifacts_by_type(self):
-        self.windlass.filter_artifacts(
+    def test_in_place_filter_artifacts_by_type(self):
+        self.windlass.filter_artifacts_in_place(
             lambda a: isinstance(a, windlass.images.Image)
         )
         self.assertEqual(len(list(self.windlass.artifacts)), 1)
@@ -42,11 +42,11 @@ class TestAPI(testtools.TestCase):
             list(self.windlass.artifacts)[0], windlass.images.Image
         )
 
-    def test_filter_artifacts_by_attribute(self):
-        self.windlass.filter_artifacts(lambda a: a.data.get('myattr'))
+    def test_in_place_filter_artifacts_by_attribute(self):
+        self.windlass.filter_artifacts_in_place(lambda a: a.data.get('myattr'))
         self.assertEqual(list(self.windlass.artifacts)[0].data['myattr'], True)
         self.assertEqual(len(list(self.windlass.artifacts)), 1)
 
-    def test_filter_artifacts_remove_all(self):
-        self.windlass.filter_artifacts(lambda a: False)
+    def test_in_place_filter_artifacts_remove_all(self):
+        self.windlass.filter_artifacts_in_place(lambda a: False)
         self.assertEqual(len(list(self.windlass.artifacts)), 0)

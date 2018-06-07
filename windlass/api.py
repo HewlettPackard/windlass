@@ -553,7 +553,7 @@ class Windlass(object):
             version=version,
             **kwargs)
 
-    def filter_artifacts(self, filter_func):
+    def filter_artifacts_in_place(self, filter_func):
         """Filter the artifacts list based on the supplied filter function.
 
         The filter_func parameter must be a callable object, and this is called
