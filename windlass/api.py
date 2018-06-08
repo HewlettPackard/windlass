@@ -27,14 +27,7 @@ import urllib.parse
 import urllib3.exceptions
 import yaml
 
-DEPRECATED_PRODUCT_FILES = [
-    'products/products.yml',
-    'products/products.yaml',
-    'products.yml',
-    'products.yaml',
-]
-
-DEFAULT_PRODUCT_FILES = ['artifacts.yaml'] + DEPRECATED_PRODUCT_FILES
+DEFAULT_PRODUCT_FILES = ['artifacts.yaml']
 # Pick the first of these as the canonical name.
 CANONICAL_PRODUCT_FILE = DEFAULT_PRODUCT_FILES[0]
 
@@ -182,10 +175,6 @@ class Artifacts(object):
                     'Products file %s does not exist, skipping' % (
                         product_file))
                 continue
-            if product_file in DEPRECATED_PRODUCT_FILES:
-                logging.warn('Please use "artifacts.yaml" as "%s" is '
-                             'deprecated and will be removed int future '
-                             'versions' % product_file)
 
             with open(product_file, 'r') as f:
                 product_def = yaml.load(f.read())
@@ -608,7 +597,7 @@ _products_registry = {}
 class register_type(object):
     """All classes that implement a Artifact must be decorated with this
 
-    This registries the class to a key in the products.yaml files. See
+    This registries the class to a key in the artifacts.yaml files. See
     windlass.images.Image for a example.
     """
 
