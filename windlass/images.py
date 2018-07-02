@@ -16,6 +16,7 @@
 
 import docker
 import windlass.api
+import windlass.exc
 import windlass.tools
 from git import Repo
 import logging
@@ -108,7 +109,8 @@ def build_verbosly(name, path, nocache=False, dockerfile=None,
     if errors:
         logging.error('Failed to build %s:\n%s', name, '\n'.join(errors))
         logging.error('Output from building %s:\n%s', name, ''.join(output))
-        raise Exception("Failed to build {}".format(name))
+        raise windlass.exc.WindlassBuildException(
+            "Failed to build {}".format(name))
     logging.info("Successfully built %s from path %s", name, path)
     return client.images.get(name)
 
