@@ -21,6 +21,7 @@ Test support code for modules that use windlass
 # modules (e.g. remotes.py)?
 
 import base64
+import boto3
 import botocore.stub
 import contextlib
 import windlass.remotes
@@ -38,14 +39,12 @@ class FakeECRConnector(windlass.remotes.ECRConnector):
         self._aws_urn = (
             '%s.dkr.ecr.%s.amazonaws.com' % ('012345678901', 'test-region')
         )
-        policy_stub = '{ "Statement": [{"Sid": "zing"}]}'
-        super().__init__(
-            creds, path_prefixes, repo_policy or policy_stub
+        ecrc = boto3.client(
+            'ecr', aws_access_key_id='None', aws_secret_access_key='None',
+            region_name='None',
         )
-
-    def _init_stubber(self, client):
-        stubber = botocore.stub.Stubber(client)
-        stubber.activate()
+        self._stubber = botocore.stub.Stubber(ecrc)
+        self._stubber.activate()
 
         auth_resp = {'authorizationData': [{
             'proxyEndpoint': 'https://%s' % self._aws_urn,
@@ -53,13 +52,11 @@ class FakeECRConnector(windlass.remotes.ECRConnector):
                 b'test_username:test_password'
             ).decode('utf-8'),
         }]}
-        stubber.add_response('get_authorization_token', auth_resp, {})
-        return stubber
-
-    def get_ecrc(self):
-        client = super().get_ecrc()
-        self._init_stubber(client)
-        return client
+        policy_stub = '{ "Statement": [{"Sid": "zing"}]}'
+        self._stubber.add_response('get_authorization_token', auth_resp, {})
+        super().__init__(
+            creds, path_prefixes, repo_policy or policy_stub, ecrc
+        )
 
     def upload(self, local_name, upload_name=None, upload_tag=None):
 
