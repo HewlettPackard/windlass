@@ -50,8 +50,11 @@ def check_docker_stream(stream):
         if 'error' in data:
             logging.error("Error processing image %s:%s" % (
                 name, "\n".join(last_msgs)))
-            raise windlass.api.RetryableFailure('%s ERROR from docker: %s' % (
-                name, data['error']))
+            raise windlass.exc.WindlassPushPullException(
+                '%s ERROR from docker: %s' % (
+                    name, data['error']
+                )
+            )
 
 
 def push_image(imagename, push_tag='latest', auth_config=None):

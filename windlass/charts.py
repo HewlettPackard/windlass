@@ -15,6 +15,7 @@
 #
 
 import windlass.api
+import windlass.exc
 import io
 import logging
 import os
@@ -89,7 +90,7 @@ class Chart(windlass.api.Artifact):
             chart_url,
             verify='/etc/ssl/certs')
         if resp.status_code != 200:
-            raise windlass.api.RetryableFailure(
+            raise windlass.exc.RetryableFailure(
                 'Failed to download chart %s' % chart_url)
 
         # Save the chart with the version and don't try and package
@@ -276,7 +277,7 @@ class Chart(windlass.api.Artifact):
                 raise Exception('Permission error (%s) uploading chart %s' % (
                     resp, upload_chart_url))
             elif resp.status_code != 201:
-                raise windlass.api.RetryableFailure(
+                raise windlass.exc.RetryableFailure(
                     'Failed (status: %d) to upload %s' % (
                         resp.status_code, upload_chart_url))
 

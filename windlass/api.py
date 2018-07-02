@@ -27,6 +27,8 @@ import urllib.parse
 import urllib3.exceptions
 import yaml
 
+import windlass.exc
+
 DEFAULT_PRODUCT_FILES = ['artifacts.yaml']
 # Pick the first of these as the canonical name.
 CANONICAL_PRODUCT_FILE = DEFAULT_PRODUCT_FILES[0]
@@ -280,14 +282,6 @@ class NoValidRemoteError(Exception):
     pass
 
 
-class RetryableFailure(Exception):
-    """Rasise this exception when you want to retry the task
-
-    This will retry and task a fix number of time with a small
-    time back off.
-    """
-
-
 class retry(object):
     """Retry decorator
 
@@ -305,7 +299,8 @@ class retry(object):
             for i in range(0, self.max_retries):
                 try:
                     return func(*args, **kwargs)
-                except (urllib3.exceptions.ReadTimeoutError, RetryableFailure):
+                except (urllib3.exceptions.ReadTimeoutError,
+                        windlass.exc.RetryableFailure):
                     logging.exception(
                         '%s: problem occuried retrying, backing '
                         'off %d seconds' % (

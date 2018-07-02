@@ -26,6 +26,7 @@ import time
 import urllib.parse
 
 import windlass.api
+import windlass.exc
 import windlass.images
 
 
@@ -50,7 +51,7 @@ class remote_retry(object):
         self.retry_backoff = retry_backoff or global_retry_backoff
         # Set the exceptions to retry on - initialise with a hard-coded
         # list and add custom ones.
-        self.retry_on = set([windlass.api.RetryableFailure])
+        self.retry_on = set([windlass.exc.RetryableFailure])
         if retry_on:
             self.retry_on.update(retry_on)
 
@@ -295,7 +296,7 @@ class HTTPBasicAuthConnector(object):
             raise Exception('Permission error (%s) uploading generic %s' % (
                 resp, upload_url))
         if resp.status_code != 201:
-            raise windlass.api.RetryableFailure(
+            raise windlass.exc.RetryableFailure(
                 'Failed (status: %d) to upload %s' % (
                     resp.status_code, upload_url))
         return upload_url

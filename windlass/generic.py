@@ -131,7 +131,7 @@ class Generic(windlass.api.Artifact):
             artifact_url,
             verify='/etc/ssl/certs')
         if resp.status_code != 200:
-            raise windlass.api.RetryableFailure(
+            raise windlass.exc.RetryableFailure(
                 'Failed to download artifact %s' % (
                     os.path.basename(artifact_url)))
 
@@ -189,7 +189,7 @@ class Generic(windlass.api.Artifact):
             raise Exception('Permission error (%s) uploading generic %s' % (
                 resp, upload_url))
         if resp.status_code != 201:
-            raise windlass.api.RetryableFailure(
+            raise windlass.exc.RetryableFailure(
                 'Failed (status: %d) to upload %s' % (
                     resp.status_code, upload_url))
 

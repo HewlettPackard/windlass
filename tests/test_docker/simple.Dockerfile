@@ -1,4 +1,3 @@
-#
 # (c) Copyright 2018 Hewlett Packard Enterprise Development LP
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -14,18 +13,6 @@
 # under the License.
 #
 
+FROM scratch
 
-class RetryableFailure(Exception):
-    """Rasise this exception when you want to retry the task
-
-    This will retry and task a fix number of time with a small
-    time back off.
-    """
-
-
-class WindlassBuildException(Exception):
-    pass
-
-
-class WindlassPushPullException(RetryableFailure):
-    pass
+ENV key=value
