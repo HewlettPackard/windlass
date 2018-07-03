@@ -50,6 +50,8 @@ def main():
     parser = ArgumentParser(description='Windlass products from other repos')
     parser.add_argument('--debug', action='store_true',
                         help='Enable debug logging')
+    parser.add_argument('--timestamps', action='store_true',
+                        help='Add timestamps to output')
     parser.add_argument('--no-parallel', action='store_true',
                         help='Windlass artifacts serially. This is '
                         'helpful for debugging')
@@ -140,7 +142,7 @@ amount of artifacts to process at any one time.''')
     if len(ns.download_generic_url) > 1:
         ns.download_generic_url = ns.download_generic_url[1:]
 
-    windlass.api.setupLogging(ns.debug)
+    windlass.api.setupLogging(ns.debug, ns.timestamps)
 
     # We have specified a product integration repository. Load all
     # artifacts from the configuration in this repository.
