@@ -15,7 +15,22 @@
 #
 
 
-class RetryableFailure(Exception):
+class WindlassExternalException(Exception):
+    """Exception to catch problems with processes outside of windlass
+
+    This exception is to be used to catch problems that most likely are
+    not issues with windlass, but problems arising from issues like bad
+    build data, failure to upload items.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args)
+        self.out = kwargs.get('out')
+        self.errors = kwargs.get('errors')
+        self.artifact_name = kwargs.get('artifact_name')
+        self.debug_data = kwargs.get('debug_data')
+
+
+class RetryableFailure(WindlassExternalException):
     """Rasise this exception when you want to retry the task
 
     This will retry and task a fix number of time with a small
@@ -23,9 +38,11 @@ class RetryableFailure(Exception):
     """
 
 
-class WindlassBuildException(Exception):
+class WindlassBuildException(WindlassExternalException):
+    "Exception to catch failures to build artifacts"
     pass
 
 
 class WindlassPushPullException(RetryableFailure):
+    "Exception to catch failures to upload or download artifacts"
     pass
