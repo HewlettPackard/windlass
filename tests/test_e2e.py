@@ -27,6 +27,8 @@ import test.support
 import testtools
 from testtools.matchers import Contains
 from testtools.matchers import Equals
+import time
+import unittest
 
 
 class FakeRegistry(testtools.TestCase):
@@ -79,6 +81,31 @@ class Test_E2E_FakeRepo(FakeRegistry):
         self.repo = Repo.init(self.repodir)
         self.repo.git.add('-A')
         self.commitid = self.repo.index.commit('Commit 1').hexsha
+
+    @unittest.expectedFailure
+    def test_bad_build(self):
+        container = self.client.containers.run(
+            'zing/windlass:latest',
+            ('--debug --push-docker-registry 127.0.0.1:%d '
+             '%s/products/bad.yml') % (
+                self.registry_port, self.repodir
+                ),
+            volumes={'/var/run/docker.sock': {'bind': '/var/run/docker.sock'},
+                     self.repodir: {'bind': self.repodir}},
+            working_dir=self.repodir,
+            environment=windlass.tools.load_proxy(),
+            detach=True
+        )
+        self.addCleanup(container.remove)
+        start = time.time()
+        while container.status in ['running', 'created']:
+            time.sleep(2)
+            container.reload()
+            if time.time() - start > 30:
+                break
+        self.assertEqual(container.status, 'exited')
+        self.assertEqual(container.attrs['State']['ExitCode'], 1)
+        self.assertNotIn('Traceback', container.logs().decode())
 
     def test_fake_repo_build_and_push(self):
         self.client.containers.run(
