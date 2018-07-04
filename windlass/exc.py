@@ -15,7 +15,15 @@
 #
 
 
-class WindlassExternalException(Exception):
+class WindlassException(Exception):
+    "Exception to be parent of all Windlass exceptions"
+    def __init__(self, *args, **kwargs):
+        # Exception does not take kwargs, but should inheritance change we
+        # might need to pass it.
+        super().__init__(*args)
+
+
+class WindlassExternalException(WindlassException):
     """Exception to catch problems with processes outside of windlass
 
     This exception is to be used to catch problems that most likely are
@@ -27,9 +35,7 @@ class WindlassExternalException(Exception):
         self.errors = kwargs.pop('errors', None)
         self.artifact_name = kwargs.pop('artifact_name', None)
         self.debug_data = kwargs.pop('debug_data', None)
-        # Exception does not take kwargs, but should inheritance change we
-        # might need to pass it.
-        super().__init__(*args)
+        super().__init__(*args, **kwargs)
 
 
 class RetryableFailure(WindlassExternalException):
