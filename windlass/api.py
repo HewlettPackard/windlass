@@ -585,10 +585,13 @@ def delete(artifacts, parallel=False, **kwargs):
     return g.delete(parallel=parallel, **kwargs)
 
 
-def setupLogging(debug=False):
+def setupLogging(debug=False, timestamps=False):
     level = logging.DEBUG if debug else logging.INFO
+    logformat = '%(message)s'
+    if timestamps:
+        logformat = '%(asctime)s %(levelname)s ' + logformat
     logging.basicConfig(
-        level=level, format='%(asctime)s %(levelname)s %(message)s')
+        level=level, format=logformat)
 
 
 _products_registry = {}
