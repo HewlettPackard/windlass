@@ -14,8 +14,6 @@
 # under the License.
 #
 
-import windlass.api
-import windlass.exc
 import io
 import logging
 import os
@@ -26,6 +24,10 @@ import subprocess
 import tarfile
 import tempfile
 import yaml
+
+import windlass.api
+import windlass.exc
+import windlass.retry
 
 
 @windlass.api.register_type('charts')
@@ -74,7 +76,7 @@ class Chart(windlass.api.Artifact):
         if subprocess.call(cmd) != 0:
             raise Exception('Failed to build chart: %s' % self.name)
 
-    @windlass.api.retry()
+    @windlass.retry.simple()
     @windlass.api.fall_back('charts_url')
     def download(self, version=None, charts_url=None, **kwargs):
         if version is None and self.version is None:
@@ -199,7 +201,7 @@ class Chart(windlass.api.Artifact):
             f.write(self.package_chart(local_version, version))
         return self.set_version(version)
 
-    @windlass.api.retry()
+    @windlass.retry.simple()
     @windlass.api.fall_back(
         'charts_url', 'docker_image_registry', first_only=True)
     def upload(self,

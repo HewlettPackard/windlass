@@ -124,7 +124,7 @@ class TestDockerUtils(tests.test_e2e.FakeRegistry):
             DockerImage(imname, 'simple')
         )
 
-        @windlass.api.retry(retry_backoff=0.1)
+        @windlass.retry.simple(retry_backoff=0.1)
         def artifact_pushing_func(artifact):
             windlass.images.push_image(imname)
         mock_artifact = unittest.mock.MagicMock()
@@ -140,6 +140,5 @@ class TestDockerUtils(tests.test_e2e.FakeRegistry):
             self.registry_port,
             self.random_name)
         self.useFixture(
-            DockerImage(imname, 'simple')
-        )
+            DockerImage(imname, 'simple'))
         windlass.images.push_image(imname)

@@ -119,7 +119,7 @@ class Generic(windlass.api.Artifact):
 
         return self.get_filename()
 
-    @windlass.api.retry()
+    @windlass.retry.simple()
     @windlass.api.fall_back('generic_url')
     def download(self,
                  version=None,
@@ -138,7 +138,7 @@ class Generic(windlass.api.Artifact):
         with open(os.path.basename(artifact_url), 'wb') as fp:
             fp.write(resp.content)
 
-    @windlass.api.retry()
+    @windlass.retry.simple()
     @windlass.api.fall_back('generic_url', first_only=True)
     def upload(self,
                version=None,

@@ -246,7 +246,7 @@ class Image(windlass.api.Artifact):
                 '%s/%s:%s' % (docker_image_registry, self.imagename, tag))
         self._delete_image('%s:%s' % (self.imagename, tag))
 
-    @windlass.api.retry()
+    @windlass.retry.simple()
     @windlass.api.fall_back('docker_image_registry')
     def download(self, version=None, docker_image_registry=None, **kwargs):
         client = docker.from_env(
@@ -296,7 +296,7 @@ class Image(windlass.api.Artifact):
         )
         return self.set_version(version)
 
-    @windlass.api.retry()
+    @windlass.retry.simple()
     @windlass.api.fall_back('docker_image_registry', first_only=True)
     def upload(self, version=None, docker_image_registry=None,
                docker_user=None, docker_password=None,

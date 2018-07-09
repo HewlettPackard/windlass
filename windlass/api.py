@@ -22,9 +22,7 @@ import multiprocessing
 import os.path
 import shutil
 import tempfile
-import time
 import urllib.parse
-import urllib3.exceptions
 import yaml
 
 import windlass.exc
@@ -280,37 +278,6 @@ class Remote(object):
 class NoValidRemoteError(Exception):
     """Indicate that a remote upload endpoint is not configured"""
     pass
-
-
-class retry(object):
-    """Retry decorator
-
-    Add this decorator to any method that we need to retry.
-    """
-
-    def __init__(self, max_retries=3, retry_backoff=5):
-        self.max_retries = max_retries
-        self.retry_backoff = retry_backoff
-
-    def __call__(self, func):
-        @functools.wraps(func)
-        def retry_f(*args, **kwargs):
-            artifact = args[0]
-            for i in range(0, self.max_retries):
-                try:
-                    return func(*args, **kwargs)
-                except (urllib3.exceptions.ReadTimeoutError,
-                        windlass.exc.RetryableFailure):
-                    logging.exception(
-                        '%s: problem occuried retrying, backing '
-                        'off %d seconds' % (
-                            artifact.name, self.retry_backoff))
-                    time.sleep(self.retry_backoff)
-
-            raise Exception('%s: Maximum number of retries occurred (%d)' % (
-                artifact.name, self.max_retries))
-
-        return retry_f
 
 
 class fall_back(object):
