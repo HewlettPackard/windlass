@@ -110,10 +110,21 @@ def build_verbosly(name, path, nocache=False, dockerfile=None,
         elif 'error' in data:
             errors.append(data['error'])
     if errors:
-        logging.error('Failed to build %s:\n%s', name, '\n'.join(errors))
-        logging.error('Output from building %s:\n%s', name, ''.join(output))
+        logging.error(
+            'Failed to build %s. Error details will be shown at the end.',
+            name)
+        debug_data = {'buildargs.%s' % k: v for k, v in bargs.items()}
+        debug_data['dockerfile'] = dockerfile
+        debug_data['tag'] = name
+        debug_data['path'] = path
+        debug_data['nocache'] = str(nocache)
+        debug_data['pull'] = str(pull)
         raise windlass.exc.WindlassBuildException(
-            "Failed to build {}".format(name))
+            "Failed to build {}".format(name),
+            out=output,
+            errors=errors,
+            artifact_name=name,
+            debug_data=debug_data)
     logging.info("Successfully built %s from path %s", name, path)
     return client.images.get(name)
 

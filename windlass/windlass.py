@@ -21,6 +21,7 @@ import windlass.pins
 from argparse import ArgumentParser
 import logging
 import os
+import sys
 
 
 def process(artifact, ns, **kwargs):
@@ -158,11 +159,16 @@ amount of artifacts to process at any one time.''')
     docker_user = os.environ.get('DOCKER_USER', None)
     docker_password = os.environ.get('DOCKER_TOKEN', None)
 
-    g.run(process,
-          ns=ns,
-          parallel=not ns.no_parallel,
-          docker_user=docker_user,
-          docker_password=docker_password)
+    try:
+        g.run(
+            process,
+            ns=ns,
+            parallel=not ns.no_parallel,
+            docker_user=docker_user,
+            docker_password=docker_password)
+    except windlass.exc.WindlassExternalException:
+        logging.error('Exited due to error in building.')
+        sys.exit(1)
     logging.info('Windlassed: %s', ','.join(ns.products))
 
 

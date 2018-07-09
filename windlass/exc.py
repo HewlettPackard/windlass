@@ -23,11 +23,13 @@ class WindlassExternalException(Exception):
     build data, failure to upload items.
     """
     def __init__(self, *args, **kwargs):
+        self.out = kwargs.pop('out', None)
+        self.errors = kwargs.pop('errors', None)
+        self.artifact_name = kwargs.pop('artifact_name', None)
+        self.debug_data = kwargs.pop('debug_data', None)
+        # Exception does not take kwargs, but should inheritance change we
+        # might need to pass it.
         super().__init__(*args)
-        self.out = kwargs.get('out')
-        self.errors = kwargs.get('errors')
-        self.artifact_name = kwargs.get('artifact_name')
-        self.debug_data = kwargs.get('debug_data')
 
 
 class RetryableFailure(WindlassExternalException):
@@ -40,7 +42,24 @@ class RetryableFailure(WindlassExternalException):
 
 class WindlassBuildException(WindlassExternalException):
     "Exception to catch failures to build artifacts"
-    pass
+
+    def debug_message(self):
+        'Returns a long debug output.'
+        msg = '%s: Build failed with output:\n' % self.artifact_name
+        for line in self.out:
+            msg += '%s: %s' % (
+                self.artifact_name,
+                line.strip())
+        if self.errors:
+            msg += '%s: Error output:\n' % self.artifact_name
+            for line in self.errors:
+                msg += '%s: %s' % (
+                    self.artifact_name,
+                    line.strip())
+        msg += '%s: Arguments passed to docker:\n' % self.artifact_name
+        for k, v in self.debug_data.items():
+            msg += '%s: %s=%s\n' % (self.artifact_name, k, v)
+        return msg
 
 
 class WindlassPushPullException(RetryableFailure):

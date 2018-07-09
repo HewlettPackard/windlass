@@ -15,9 +15,6 @@
 #
 
 import docker
-import windlass.api
-import windlass.images
-import windlass.tools
 from git import Repo
 import os
 from requests import get
@@ -28,7 +25,10 @@ import testtools
 from testtools.matchers import Contains
 from testtools.matchers import Equals
 import time
-import unittest
+
+import windlass.api
+import windlass.images
+import windlass.tools
 
 
 class FakeRegistry(testtools.TestCase):
@@ -82,7 +82,6 @@ class Test_E2E_FakeRepo(FakeRegistry):
         self.repo.git.add('-A')
         self.commitid = self.repo.index.commit('Commit 1').hexsha
 
-    @unittest.expectedFailure
     def test_bad_build(self):
         container = self.client.containers.run(
             'zing/windlass:latest',
@@ -103,9 +102,18 @@ class Test_E2E_FakeRepo(FakeRegistry):
             container.reload()
             if time.time() - start > 30:
                 break
+        if container.status in ['running', 'exited']:
+            docker_logs = container.logs().decode()
+            self.addDetail(
+                'docker logs', testtools.content.text_content(
+                    str(docker_logs)))
+        self.addDetail(
+            'docker attributes', testtools.content.text_content(
+                str(container.attrs))
+            )
         self.assertEqual(container.status, 'exited')
         self.assertEqual(container.attrs['State']['ExitCode'], 1)
-        self.assertNotIn('Traceback', container.logs().decode())
+        self.assertNotIn('Traceback', docker_logs)
 
     def test_fake_repo_build_and_push(self):
         self.client.containers.run(
