@@ -130,10 +130,15 @@ class TestDockerUtils(tests.test_e2e.FakeRegistry):
         mock_artifact = unittest.mock.MagicMock()
         mock_artifact.name = 'ArtifactName'
 
-        with testtools.ExpectedException(
-                Exception,
-                '.*Maximum number of retries occurred.*'):
-            artifact_pushing_func(mock_artifact)
+        e = self.assertRaises(
+            windlass.exc.FailedRetriesException,
+            artifact_pushing_func,
+            mock_artifact
+        )
+        self.assertEqual(len(e.attempts), 3)
+        self.assertIsInstance(
+            e.attempts[0], windlass.exc.WindlassPushPullException
+        )
 
     def test_push_image(self):
         imname = '127.0.0.1:%d/%s' % (

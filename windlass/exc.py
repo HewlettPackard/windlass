@@ -46,6 +46,17 @@ class RetryableFailure(WindlassExternalException):
     """
 
 
+class FailedRetriesException(WindlassException):
+    """Raise this exception when multiple retries failed.
+
+    It requires keyword argument attempts containing list of exceptions from
+    failed attempts.
+    """
+    def __init__(self, *args, **kwargs):
+        self.attempts = kwargs.pop('attempts')
+        super().__init__(*args, **kwargs)
+
+
 class WindlassBuildException(WindlassExternalException):
     "Exception to catch failures to build artifacts"
 

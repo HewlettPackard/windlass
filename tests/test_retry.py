@@ -35,10 +35,11 @@ class TestRetryDecorator(testtools.TestCase):
         mock_artifact = unittest.mock.MagicMock()
         mock_artifact.name = 'ArtifactName'
 
-        e = self.assertRaises(Exception, artifact_func, mock_artifact)  # noqa
-        self.assertIn(
-            'Maximum number of retries occurred (3)',
-            str(e))
+        e = self.assertRaises(
+            windlass.exc.FailedRetriesException,
+            artifact_func,
+            mock_artifact)
+        self.assertEqual(len(e.attempts), 3)
 
     def test_retry_non_retryable(self):
         run = False

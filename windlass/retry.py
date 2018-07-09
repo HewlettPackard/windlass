@@ -33,6 +33,8 @@ class simple(object):
         self.retry_backoff = retry_backoff
 
     def __call__(self, func):
+        attempts = []
+
         @functools.wraps(func)
         def retry_f(*args, **kwargs):
             artifact = args[0]
@@ -40,14 +42,17 @@ class simple(object):
                 try:
                     return func(*args, **kwargs)
                 except (urllib3.exceptions.ReadTimeoutError,
-                        windlass.exc.RetryableFailure):
+                        windlass.exc.RetryableFailure) as e:
                     logging.exception(
                         '%s: problem occuried retrying, backing '
                         'off %d seconds' % (
                             artifact.name, self.retry_backoff))
+                    attempts.append(e)
                     time.sleep(self.retry_backoff)
 
-            raise Exception('%s: Maximum number of retries occurred (%d)' % (
-                artifact.name, self.max_retries))
+            raise windlass.exc.FailedRetriesException(
+                '%s: Maximum number of retries occurred (%d)' % (
+                    artifact.name, self.max_retries),
+                attempts=attempts)
 
         return retry_f
