@@ -77,16 +77,18 @@ class TestDockerUtils(tests.test_e2e.FakeRegistry):
                 'RUN exit 1\n'
 
             )
-        with testtools.ExpectedException(
-                windlass.exc.WindlassBuildException) as e:
-            windlass.images.build_verbosly(
-                self.random_name,
-                temp.path,
-                dockerfile='Dockerfile')
-            self.assertIsNotNone(e.output)
-            self.assertIsNotNone(e.errors)
-            self.assertIsNotNone(e.artifact_name)
-            self.assertIsNotNone(e.debug_data)
+        e = self.assertRaises(
+            windlass.exc.WindlassBuildException,
+            windlass.images.build_verbosly,
+            self.random_name,
+            temp.path,
+            dockerfile='Dockerfile')
+
+        self.assertIsNotNone(e.out)
+        self.assertIsNotNone(e.errors)
+        self.assertIsNotNone(e.artifact_name)
+        self.assertIsNotNone(e.debug_data)
+        self.assertIsInstance(e.debug_message(), str)
 
     def test_image_build_delete(self):
         temp = self.useFixture(

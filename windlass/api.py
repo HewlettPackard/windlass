@@ -466,13 +466,19 @@ class Windlass(object):
                         result.wait(.2)
 
             if self._failed:
-                # The error callback was called. This sets _running to the
+                # The error callback was called. This sets _failed to the
                 # exception object raised by the process
                 # Wait for pool to terminate and then raise exception
                 logging.error("Terminating pool")
                 pool.terminate()
                 logging.debug("Pool terminated")
                 self._running = False
+
+                if isinstance(self._failed, (
+                        windlass.exc.WindlassBuildException
+                )):
+                    logging.error(self._failed.debug_message())
+
                 raise self._failed
 
         # Allow future calls to run on the same set of artifacts to work
