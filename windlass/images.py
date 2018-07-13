@@ -106,7 +106,7 @@ def build_verbosly(name, path, nocache=False, dockerfile=None,
             for out in data['stream'].split('\n\r'):
                 logging.debug('%s: %s', name, out.strip())
                 # capture detailed output in case of error
-                output.append(out)
+                output.append(out.strip())
         elif 'error' in data:
             errors.append(data['error'])
     if errors:
