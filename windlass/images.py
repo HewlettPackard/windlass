@@ -306,8 +306,9 @@ class Image(windlass.api.Artifact):
             timeout=180)
         # Start to phase out passing of version to upload.
         if version != self.version:
-            logging.warning(
-                "Changing image %s:%s version (to %s) during upload",
+            logging.debug(
+                "Changing image %s:%s version (to %s) during upload, this "
+                "should be avoided as deprecated behaviour.",
                 self.imagename, self.version, version,
             )
 

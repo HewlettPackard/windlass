@@ -242,8 +242,9 @@ class Chart(windlass.api.Artifact):
 
         # Start to phase out passing of version to upload.
         if upload_version != local_version:
-            logging.warning(
-                "Changing chart %s version (to %s) during upload",
+            logging.debug(
+                "Changing chart %s version (to %s) during upload, this "
+                "should be avoied as deprecated behaviour",
                 local_chart_name, upload_version
             )
 
