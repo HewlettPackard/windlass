@@ -64,15 +64,15 @@ class WindlassBuildException(WindlassExternalException):
         'Returns a long debug output.'
         msg = '%s: Build failed with output:\n' % self.artifact_name
         for line in self.out:
-            msg += '%s: %s' % (
+            msg += '%s: %s\n' % (
                 self.artifact_name,
-                line.strip())
+                line)
         if self.errors:
             msg += '%s: Error output:\n' % self.artifact_name
             for line in self.errors:
-                msg += '%s: %s' % (
+                msg += '%s: %s\n' % (
                     self.artifact_name,
-                    line.strip())
+                    line)
         msg += '%s: Arguments passed to docker:\n' % self.artifact_name
         for k, v in self.debug_data.items():
             msg += '%s: %s=%s\n' % (self.artifact_name, k, v)
