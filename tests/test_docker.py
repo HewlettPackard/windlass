@@ -18,7 +18,6 @@ import docker
 import fixtures
 import logging
 import pathlib
-import testtools
 import unittest.mock
 import uuid
 
@@ -88,7 +87,9 @@ class TestDockerUtils(tests.test_e2e.FakeRegistry):
         self.assertIsNotNone(e.errors)
         self.assertIsNotNone(e.artifact_name)
         self.assertIsNotNone(e.debug_data)
-        self.assertIsInstance(e.debug_message(), str)
+        debug_output = e.debug_message()
+        for line in e.out + e.errors:
+            self.assertIn(line, debug_output)
 
     def test_image_build_delete(self):
         temp = self.useFixture(
@@ -109,14 +110,20 @@ class TestDockerUtils(tests.test_e2e.FakeRegistry):
         self.useFixture(
             DockerImage(imname, 'simple')
         )
-        with testtools.ExpectedException(
-                windlass.exc.WindlassPushPullException):
-            windlass.images.push_image(imname)
-            # Commenting out assertions until a fix is implemented
-            # self.assertIsNotNone(e.output)
-            # self.assertIsNotNone(e.errors)
-            # self.assertIsNotNone(e.artifact_name)
-            # self.assertIsNotNone(e.debug_data)
+        e = self.assertRaises(
+            windlass.exc.WindlassPushPullException,
+            windlass.images.push_image,
+            imname)
+        self.assertIsNotNone(e.out)
+        self.assertIsNotNone(e.errors)
+        debug_output = e.debug_message()
+        for line in e.out + e.errors:
+            self.assertIn(line, debug_output)
+        # Exception is currently raised in piece of code where this info is
+        # not avaliable, as it is function parsing stream output from docker.
+        # This will be chaned in future.
+        # self.assertIsNotNone(e.artifact_name)
+        # self.assertIsNotNone(e.debug_data)
 
     def test_retry_push_image(self):
         imname = '127.0.0.1:23/%s' % self.random_name

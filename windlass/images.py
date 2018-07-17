@@ -49,11 +49,13 @@ def check_docker_stream(stream):
                 last_msgs.append(msg)
         if 'error' in data:
             logging.error("Error processing image %s:%s" % (
-                name, "\n".join(last_msgs)))
+                name, data['error']))
             raise windlass.exc.WindlassPushPullException(
                 '%s ERROR from docker: %s' % (
                     name, data['error']
-                )
+                ),
+                out=last_msgs,
+                errors=[data['error']],
             )
 
 
@@ -63,9 +65,6 @@ def push_image(imagename, push_tag='latest', auth_config=None):
         timeout=180)
     name = multiprocessing.current_process().name
     logging.info('%s: Pushing as %s:%s', name, imagename, push_tag)
-
-    # raises exception if imagename is missing
-    client.images.get(imagename + ':' + push_tag)
 
     output = client.images.push(
         imagename, push_tag, auth_config=auth_config,
@@ -335,6 +334,16 @@ class Image(windlass.api.Artifact):
 
         # Local image name on the node
         local_fullname = self.url(self.version)
+
+        # raises exception if imagename is missing
+        try:
+            client.images.get(local_fullname)
+        except docker.errors.ImageNotFound as e:
+            raise windlass.exc.MissingArtifact(
+                'Image %s is missing.' % local_fullname,
+                artifact_name=self.name,
+                errors=[str(e)]
+            )
 
         # Upload image with this tag
         upload_tag = version or self.version

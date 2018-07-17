@@ -166,8 +166,8 @@ amount of artifacts to process at any one time.''')
             parallel=not ns.no_parallel,
             docker_user=docker_user,
             docker_password=docker_password)
-    except windlass.exc.WindlassExternalException:
-        logging.error('Exited due to error in building.')
+    except windlass.exc.WindlassException:
+        logging.error('Exited due to error.')
         sys.exit(1)
     logging.info('Windlassed: %s', ','.join(ns.products))
 

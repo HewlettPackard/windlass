@@ -325,8 +325,7 @@ class fall_back(object):
                 except Exception:
                     logging.debug(
                         'Error getting %s, falling back to next repository' % (
-                            args[0].name),
-                        exc_info=True,
+                            args[0].name)
                     )
 
                     if self.first_only or count == (len(all_fall_backs[0])-1):
@@ -442,7 +441,7 @@ class Windlass(object):
                 self._running = False
 
                 if isinstance(self._failed, (
-                        windlass.exc.WindlassBuildException
+                        windlass.exc.WindlassException
                 )):
                     logging.error(self._failed.debug_message())
 

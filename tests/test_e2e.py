@@ -114,6 +114,7 @@ class Test_E2E_FakeRepo(FakeRegistry):
         self.assertEqual(container.status, 'exited')
         self.assertEqual(container.attrs['State']['ExitCode'], 1)
         self.assertNotIn('Traceback', docker_logs)
+        self.assertIn('Build failed with output', docker_logs)
 
     def test_fake_repo_build_and_push(self):
         self.client.containers.run(
@@ -131,6 +132,40 @@ class Test_E2E_FakeRepo(FakeRegistry):
         # TODO(kerrin) disable partial image until we recognize remote urls
         # self.check_proper_image_build('partial')
         self.check_proper_image_build('full')
+
+    def test_fake_repo_build_and_bad_push(self):
+        container = self.client.containers.run(
+            'zing/windlass:latest',
+            ('--debug --push-docker-registry 127.0.0.1:%d '
+             '%s/products/test.yml') % (
+                self.registry_port + 1, self.repodir
+                ),
+            volumes={'/var/run/docker.sock': {'bind': '/var/run/docker.sock'},
+                     self.repodir: {'bind': self.repodir}},
+            working_dir=self.repodir,
+            environment=windlass.tools.load_proxy(),
+            detach=True
+        )
+        self.addCleanup(container.remove)
+        start = time.time()
+        while container.status in ['running', 'created']:
+            time.sleep(2)
+            container.reload()
+            if time.time() - start > 30:
+                break
+        if container.status in ['running', 'exited']:
+            docker_logs = container.logs().decode()
+            self.addDetail(
+                'docker logs', testtools.content.text_content(
+                    str(docker_logs)))
+        self.addDetail(
+            'docker attributes', testtools.content.text_content(
+                str(container.attrs))
+            )
+        self.assertEqual(container.status, 'exited')
+        self.assertEqual(container.attrs['State']['ExitCode'], 1)
+        self.assertNotIn('Traceback', docker_logs)
+        self.assertIn('Error pushing or pulling artifact', docker_logs)
 
     def check_proper_image_build(self, imagename):
         fullimagename = '127.0.0.1:%s/fakerepo%s' % (
