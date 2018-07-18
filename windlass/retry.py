@@ -43,13 +43,17 @@ class simple(object):
                     return func(*args, **kwargs)
                 except (urllib3.exceptions.ReadTimeoutError,
                         windlass.exc.RetryableFailure) as e:
-                    logging.exception(
+                    logging.info(
                         '%s: problem occuried retrying, backing '
                         'off %d seconds' % (
                             artifact.name, self.retry_backoff))
                     attempts.append(e)
                     time.sleep(self.retry_backoff)
-
+            logging.error(
+                '%s: Maximum number of retries occurred (%d), details will be'
+                ' displayed at the end' % (
+                    artifact.name, self.max_retries),
+                )
             raise windlass.exc.FailedRetriesException(
                 '%s: Maximum number of retries occurred (%d)' % (
                     artifact.name, self.max_retries),

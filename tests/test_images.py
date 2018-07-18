@@ -22,6 +22,17 @@ import testtools
 
 class TestImageAPI(testtools.TestCase):
 
+    def test_missing_artifact(self):
+        im = windlass.images.Image(dict(
+            name='not_existing'
+        ))
+        e = self.assertRaises(
+            windlass.exc.MissingArtifact,
+            im.upload,
+            docker_image_registry='127.0.0.1:23')
+        self.assertEqual(e.artifact_name, 'not_existing')
+        self.assertIsNotNone(e.errors)
+
     def test_export(self):
         im = windlass.images.Image(dict(
             name='alpine',
