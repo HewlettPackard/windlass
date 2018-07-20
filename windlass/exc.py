@@ -116,3 +116,43 @@ class WindlassPushPullException(RetryableFailure):
             msg += line + '\n'
         msg += 'End of output.'
         return msg
+
+
+class MissingEntryInChartValues(WindlassException):
+    def __init__(self, *args, **kwargs):
+        self.missing_key = kwargs.pop('missing_key', None)
+        source_dict = kwargs.pop('expected_source', None)
+        if source_dict:
+            self.expected_path = []
+            self._dict_to_path(source_dict)
+        self.chart_name = kwargs.pop('chart_name', None)
+        self.values_filename = kwargs.pop('values_filename', None)
+        super().__init__(*args, **kwargs)
+
+    def _dict_to_path(self, values_dict):
+        key = list(values_dict)[0]
+        self.expected_path.append(key)
+        if isinstance(values_dict[key], dict):
+            self._dict_to_path(values_dict[key])
+
+    def __str__(self):
+        return (
+            'Failed to repackage chart %s, as key %s was not found in file '
+            '%s at expected level.' % (
+                self.chart_name,
+                self.missing_key,
+                self.values_filename
+            ))
+
+    def debug_message(self):
+        msg = 'Failed to repackage chart %s.\n' % self.chart_name
+        msg += ('It was expected that values.yaml(%s) would contain dict of '
+                'following structure:\n' % self.values_filename)
+        for i, key in enumerate(self.expected_path):
+            msg += i * 2 * ' ' + '%s:\n' % key
+        msg += ('Key "%s" was not where expected, you need to correct '
+                'values.yaml to contain such structure, or change your '
+                'artifacts.yaml to "values" entry for %s to structure '
+                'that matches one in values.yaml' % (
+                    self.missing_key, self.chart_name))
+        return msg

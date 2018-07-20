@@ -15,9 +15,6 @@
 #
 
 import docker
-import windlass.charts
-import windlass.images
-import windlass.tools
 import git
 import io
 import os
@@ -26,6 +23,11 @@ import tarfile
 import tempfile
 import testtools
 import yaml
+
+import windlass.charts
+import windlass.exc
+import windlass.images
+import windlass.tools
 
 
 class TestCharts(testtools.TestCase):
@@ -109,3 +111,19 @@ class TestCharts(testtools.TestCase):
             self.chart.upload(
                 charts_url='bogus', docker_image_registry='', remote=remote
             )
+
+    def test_repackage_with_bad_values(self):
+        del self.chart.data['values']
+        self.chart.data['values'] = {
+            'non_existing': {'image': {'tag': '{version}'}}}
+        e = self.assertRaises(
+            windlass.exc.MissingEntryInChartValues,
+            self.chart.package_chart, '0.0.1', '2.1.0', registry='reg')
+        self.assertEqual(e.missing_key, 'non_existing')
+        self.assertEqual(e.chart_name, 'ubuntu')
+        self.assertEqual(e.values_filename, 'ubuntu/values.yaml')
+        self.assertEqual(e.expected_path, ['non_existing', 'image', 'tag'])
+        debug_message = e.debug_message()
+        for text in ['non_existing', 'ubuntu', 'ubuntu/values.yaml']:
+            self.assertIn(text, str(e))
+            self.assertIn(text, debug_message)

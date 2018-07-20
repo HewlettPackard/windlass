@@ -152,7 +152,15 @@ class Chart(windlass.api.Artifact):
             def expand_values(source, expanded):
                 for key, value in source.items():
                     if isinstance(value, dict):
-                        expand_values(value, expanded[key])
+                        try:
+                            expand_values(value, expanded[key])
+                        except KeyError as e:
+                            raise windlass.exc.MissingEntryInChartValues(
+                                expected_source=source,
+                                missing_key=e.args[0],
+                                values_filename=values_file,
+                                chart_name=self.name
+                            )
                     else:
                         newvalue = value.format(**data)
                         expanded[key] = newvalue
