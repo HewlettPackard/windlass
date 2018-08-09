@@ -15,6 +15,6 @@
 #
 
 hacking
+stestr
 testtools
-testrepository
 pip-tools
