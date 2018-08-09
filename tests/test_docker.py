@@ -18,6 +18,7 @@ import docker
 import fixtures
 import logging
 import pathlib
+import unittest
 import unittest.mock
 import uuid
 
@@ -154,3 +155,32 @@ class TestDockerUtils(tests.test_e2e.FakeRegistry):
         self.useFixture(
             DockerImage(imname, 'simple'))
         windlass.images.push_image(imname)
+
+    @unittest.expectedFailure
+    def test_build_with_buildargs(self):
+        temp = self.useFixture(
+            fixtures.TempDir()
+        )
+        self.useFixture(
+            fixtures.EnvironmentVariable(
+                'GATHER_BUILDARG_ARGUMENT',
+                'somevalue'
+            )
+        )
+        with open('%s/Dockerfile' % temp.path, 'w') as f:
+            f.write(
+                'FROM alpine\n'
+                'ARG argument\n'
+                'RUN echo -n $ARGUMENT > content.txt\n'
+                'CMD cat content.txt'
+            )
+        im = windlass.images.build_verbosly(
+            self.random_name,
+            temp.path,
+            dockerfile='Dockerfile')
+        client = docker.from_env(
+            version='auto',
+            timeout=180)
+        self.assertEqual(
+            'somevalue',
+            client.containers.run(im, remove=True).decode())
