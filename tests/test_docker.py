@@ -156,7 +156,6 @@ class TestDockerUtils(tests.test_e2e.FakeRegistry):
             DockerImage(imname, 'simple'))
         windlass.images.push_image(imname)
 
-    @unittest.expectedFailure
     def test_build_with_buildargs(self):
         temp = self.useFixture(
             fixtures.TempDir()
@@ -170,7 +169,7 @@ class TestDockerUtils(tests.test_e2e.FakeRegistry):
         with open('%s/Dockerfile' % temp.path, 'w') as f:
             f.write(
                 'FROM alpine\n'
-                'ARG argument\n'
+                'ARG ARGUMENT\n'
                 'RUN echo -n $ARGUMENT > content.txt\n'
                 'CMD cat content.txt'
             )

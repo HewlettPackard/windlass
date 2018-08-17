@@ -149,6 +149,11 @@ When dealing with docker container images Windlass has 3 uses to cover:
         <org>/zuul   latest          2e34ff20ec5c   5 days ago   150MB
         <org>/zuul   ref_82f9bd...   2e34ff20ec5c   5 days ago   150MB
 
+   You can supply build arguments that would be passed to images that are going
+   to be build by setting up environmental variable using prefix
+   *GATHER_BUILDARG_* for example to pass *name* you need to use
+   variable *GATHER_BUILDARG_name*
+
 ### Charts
 
 "Helm uses a packaging format called charts. A chart is a collection of files

@@ -25,6 +25,8 @@ import os
 
 import yaml
 
+BUILDARG_PREFIX = 'GATHER_BUILDARG_'
+
 
 def check_docker_stream(stream):
     # Read output from docker command and raise exception
@@ -90,6 +92,9 @@ def build_verbosly(name, path, nocache=False, dockerfile=None,
         version='auto',
         timeout=180)
     bargs = windlass.tools.load_proxy()
+    for envvar in os.environ:
+        if envvar.startswith(BUILDARG_PREFIX):
+            bargs[envvar[len(BUILDARG_PREFIX):]] = os.environ[envvar]
     logging.info("Building %s from path %s", name, path)
     stream = client.api.build(path=path,
                               tag=name,
