@@ -23,6 +23,7 @@ import logging
 import os
 import requests
 import time
+import traceback
 import urllib.parse
 
 import windlass.api
@@ -54,6 +55,7 @@ class remote_retry(object):
         self.retry_on = set([windlass.exc.RetryableFailure])
         if retry_on:
             self.retry_on.update(retry_on)
+        self._raised = []
 
     def __call__(self, func):
         @functools.wraps(func)
@@ -64,12 +66,18 @@ class remote_retry(object):
                 except Exception as e:
                     if not any(isinstance(e, r) for r in self.retry_on):
                         raise
-                    logging.exception(
+                    self._raised.append(traceback.format_exc())
+                    logging.info(
                         '%s: problem occuried retrying, backing '
                         'off %d seconds' % (
                             func, self.retry_backoff))
                     time.sleep(self.retry_backoff)
 
+            logging.error('Attempted %d times with following results:'
+                          % self.max_retries)
+            for no, tb in enumerate(self._raised):
+                logging.error('Attempt %d' % (no + 1))
+                logging.error(tb)
             raise Exception('%s: Maximum number of retries occurred (%d)' % (
                 func, self.max_retries))
 

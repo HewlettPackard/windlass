@@ -99,5 +99,40 @@ class TestECRConnector(testtools.TestCase):
         )
         self._stub_set_repository_policy(image_name)
 
-        self.connector._create_repo_if_new(image_name)
+        with self.assertLogs() as cmlogs:
+            self.connector._create_repo_if_new(image_name)
+            for logrecord in cmlogs.records:
+                self.assertNotIn('Traceback', logrecord.msg)
         assert self.connector.existing_repos == set([image_name])
+
+    def test_multiple_fail(self):
+        image_name = 'my/new/image'
+
+        # Three tries should fail and cause exceptions to be logged
+        self._stub_create_repository(image_name)
+        self.stubber.add_client_error(
+            'set_repository_policy', 'RepositoryNotFoundException'
+        )
+        self.stubber.add_client_error(
+            'create_repository', 'RepositoryNotFoundException'
+        )
+        self.stubber.add_client_error(
+            'create_repository', 'RepositoryNotFoundException'
+        )
+
+        self._stub_set_repository_policy(image_name)
+
+        with self.assertLogs() as cmlogs:
+            e = self.assertRaises(
+                Exception,
+                self.connector._create_repo_if_new,
+                image_name
+
+            )  # noqa
+            # Ensure three tracebacks are there
+            tbs = 0
+            for logrecord in cmlogs.records:
+                if 'Traceback' in logrecord.msg:
+                    tbs += 1
+            self.assertEqual(tbs, 3)
+            self.assertIn('Maximum number of retries occurred (3)', str(e))
