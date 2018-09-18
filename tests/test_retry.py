@@ -18,6 +18,7 @@ import fixtures
 import logging
 import testtools
 import unittest
+from urllib3.exceptions import ReadTimeoutError
 
 import windlass.exc
 
@@ -74,3 +75,23 @@ class TestRetryDecorator(testtools.TestCase):
         self.assertTrue(
             artifact_func(mock_artifact)
         )
+
+    @unittest.expectedFailure
+    def test_retry_fail_timeout(self):
+
+        @windlass.retry.simple(retry_backoff=0.1)
+        def artifact_func(artifact):
+            raise ReadTimeoutError(
+                unittest.mock.MagicMock(),
+                unittest.mock.MagicMock(),
+                unittest.mock.MagicMock()
+            )
+        mock_artifact = unittest.mock.MagicMock()
+        mock_artifact.name = 'ArtifactName'
+
+        e = self.assertRaises(
+            windlass.exc.FailedRetriesException,
+            artifact_func,
+            mock_artifact)
+        self.assertEqual(len(e.attempts), 3)
+        e.debug_message()
