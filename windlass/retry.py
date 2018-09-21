@@ -17,9 +17,25 @@
 import functools
 import logging
 import time
+import traceback
+import types
 import urllib3.exceptions
 
 import windlass.exc
+
+
+def simple_debug_message(self):
+    return self._debug_message
+
+
+def ensure_debug_message(excobj):
+    if not hasattr(excobj, 'debug_message'):
+
+        excobj._debug_message = (
+            'Exception traceback:\n%s' % traceback.format_exc())
+        # Bind method to instance
+        excobj.debug_message = types.MethodType(simple_debug_message, excobj)
+    return excobj
 
 
 class simple(object):
@@ -47,7 +63,7 @@ class simple(object):
                         '%s: problem occuried retrying, backing '
                         'off %d seconds' % (
                             artifact.name, self.retry_backoff))
-                    attempts.append(e)
+                    attempts.append(ensure_debug_message(e))
                     time.sleep(self.retry_backoff)
             logging.error(
                 '%s: Maximum number of retries occurred (%d), details will be'

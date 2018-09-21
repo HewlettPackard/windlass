@@ -76,7 +76,6 @@ class TestRetryDecorator(testtools.TestCase):
             artifact_func(mock_artifact)
         )
 
-    @unittest.expectedFailure
     def test_retry_fail_timeout(self):
 
         @windlass.retry.simple(retry_backoff=0.1)
