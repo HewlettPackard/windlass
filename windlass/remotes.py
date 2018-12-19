@@ -134,8 +134,29 @@ class ECRConnector(DockerConnector):
 
     Upload is always to the first path, if specified.
     """
-    def __init__(self, creds, path_prefixes=None, repo_policy=None,
-                 ecrc=None):
+    def __init__(self, creds, path_prefixes=None, repo_policies=None,
+                 repo_policy=None, ecrc=None):
+        """Initialise an ECRConnector
+
+        If repo_policy is specified, it must be a stringified json struct
+        describing the access policy to be applied to any repositories that
+        are created.
+
+        Alternatively, repo_policies can be used to set both access policy and
+        lifecycle policy.  This can either be a string as for repo_policy (to
+        support legacy usage) or a dict with following layout:
+
+        {
+          'access': <access policy>,
+          'lifecycle': <lifecycle policy>,
+        }
+
+        where <access policy> and <lifecycle policy> are stringified json
+        dicts.
+        If repo_policies is not None, repo_policy is ignored.
+        (The repo_policies parameter is intended to eventually replace
+        repo_policy).
+        """
         self.creds = creds
         if path_prefixes is None:
             self.path_prefixes = ['']
@@ -143,7 +164,14 @@ class ECRConnector(DockerConnector):
             self.path_prefixes = [path_prefixes]
         else:
             self.path_prefixes = path_prefixes
-        self.new_repo_policy = repo_policy
+
+        if repo_policies is None:
+            repo_policies = {'access': repo_policy}
+        elif isinstance(repo_policies, str):
+            repo_policies = {'access': repo_policies}
+        self.new_repo_policy = repo_policies.get('access')
+        self.new_repo_lifecycle_policy = repo_policies.get('lifecycle')
+
         # Allow for specifying a test ECR client, for running tests.
         self._ecrc = ecrc
 
@@ -233,6 +261,11 @@ class ECRConnector(DockerConnector):
             policy_text = self.new_repo_policy
             self.ecrc.set_repository_policy(
                 repositoryName=repository_name, policyText=policy_text
+            )
+        if self.new_repo_lifecycle_policy:
+            self.ecrc.put_lifecycle_policy(
+                repositoryName=repository_name,
+                lifecyclePolicyText=self.new_repo_lifecycle_policy,
             )
 
     def upload(self, local_name, upload_name=None, upload_tag=None):

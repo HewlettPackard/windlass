@@ -19,19 +19,30 @@ import boto3
 import botocore.stub
 import windlass.remotes
 import testtools
+import unittest
 
 aws_region = 'test-region'
 aws_account = '012345678901'
+aws_key_id = 'AKIA000TESTKEYID0000'
+aws_secret_key = 'VUoSL+TestSecretKey+P8JPAuL2a/0doizdNHxc'
+# Define some stock policies
+ecr_access_policies = [
+    '{ "Statement": [{"Sid": "zing1"}]}',
+    '{ "Statement": [{"Sid": "zing2"}]}',
+]
+ecr_lifecycle_policies = [
+    '{ "rules": [] }',
+]
 
 
-class TestECRConnector(testtools.TestCase):
+class TestECRConnectorBase(testtools.TestCase):
     def setUp(self):
         super().setUp()
-        tc = boto3.client(
+        self.ecr_client = boto3.client(
             'ecr', aws_access_key_id='None', aws_secret_access_key='None',
             region_name='None',
         )
-        self.stubber = botocore.stub.Stubber(tc)
+        self.stubber = botocore.stub.Stubber(self.ecr_client)
         self.stubber.activate()
 
         auth_resp = {'authorizationData': [{
@@ -42,12 +53,8 @@ class TestECRConnector(testtools.TestCase):
                 b'test_username:test_password'
             ).decode('utf-8'),
         }]}
-        policy_stub = '{ "Statement": [{"Sid": "zing"}]}'
         self.stubber.add_response('get_authorization_token', auth_resp, {})
 
-        self.connector = windlass.remotes.ECRConnector(
-            creds=None, repo_policy=policy_stub, ecrc=tc,
-        )
         # Set the retry backoff time to 0 to speed up tests.
         windlass.remotes.global_retry_backoff = 0
 
@@ -73,6 +80,86 @@ class TestECRConnector(testtools.TestCase):
         inp = {'repositoryName': image_name, 'policyText': botocore.stub.ANY}
         resp = {}  # Return value not used.
         self.stubber.add_response('set_repository_policy', resp, inp)
+
+    def _stub_put_lifecycle_policy(self, image_name):
+        inp = {
+            'repositoryName': image_name,
+            'lifecyclePolicyText': botocore.stub.ANY
+        }
+        resp = {}  # Return value not used.
+        self.stubber.add_response('set_repository_policy', resp, inp)
+
+
+class TestECRConnectorInitialisation(TestECRConnectorBase):
+    """Test initialisation of ECRConnector objects."""
+
+    def test_using_repo_policy(self):
+        policy = ecr_access_policies[0]
+        connector = windlass.remotes.ECRConnector(
+            creds=None, repo_policy=policy, ecrc=self.ecr_client,
+        )
+        self.assertEqual(connector.new_repo_policy, policy)
+        self.assertIsNone(connector.new_repo_lifecycle_policy)
+
+    def test_using_repo_policies_as_string(self):
+        policy = ecr_access_policies[1]
+        connector = windlass.remotes.ECRConnector(
+            creds=None, repo_policies=policy, ecrc=self.ecr_client,
+        )
+        self.assertEqual(connector.new_repo_policy, policy)
+        self.assertIsNone(connector.new_repo_lifecycle_policy)
+        pass
+
+    def test_repo_policies_overrides_repo_policy(self):
+        old_policy = ecr_access_policies[0]
+        new_policy = {
+          'access': ecr_access_policies[1],
+          'lifecycle': ecr_lifecycle_policies[0],
+        }
+        connector = windlass.remotes.ECRConnector(
+            creds=None, repo_policies=new_policy, repo_policy=old_policy,
+            ecrc=self.ecr_client,
+        )
+        self.assertEqual(connector.new_repo_policy, new_policy['access'])
+        self.assertEqual(
+            connector.new_repo_lifecycle_policy, new_policy['lifecycle']
+        )
+
+    def test_positional_repo_policies_as_string(self):
+        policy = ecr_access_policies[0]
+        creds = None
+        path_prefixes = None
+        connector = windlass.remotes.ECRConnector(
+            creds, path_prefixes, policy, ecrc=self.ecr_client
+        )
+        self.assertEqual(connector.new_repo_policy, policy)
+
+    def test_positional_repo_policies_as_dict(self):
+        policy = {
+            'access': ecr_access_policies[0],
+            'lifecycle': ecr_lifecycle_policies[0],
+        }
+        creds = None
+        path_prefixes = None
+        connector = windlass.remotes.ECRConnector(
+            creds, path_prefixes, policy, ecrc=self.ecr_client
+        )
+        self.assertEqual(connector.new_repo_policy, policy['access'])
+        self.assertEqual(
+            connector.new_repo_lifecycle_policy, policy['lifecycle']
+        )
+
+
+class TestECRConnectorUsage(TestECRConnectorBase):
+    def setUp(self):
+        super().setUp()
+        policies = {
+            'access': '{ "Statement": [{"Sid": "zing"}]}',
+            'lifecycle': None,
+        }
+        self.connector = windlass.remotes.ECRConnector(
+            creds=None, repo_policies=policies, ecrc=self.ecr_client,
+        )
 
     def test_new_repo_create(self):
         image_name = 'my/new/image'
@@ -136,3 +223,43 @@ class TestECRConnector(testtools.TestCase):
                     tbs += 1
             self.assertEqual(tbs, 3)
             self.assertIn('Maximum number of retries occurred (3)', str(e))
+
+
+class TestAWSRemote(TestECRConnectorBase):
+
+    def setUp(self):
+        super().setUp()
+        self.remote = windlass.remotes.AWSRemote(
+            aws_key_id, aws_secret_key, aws_region
+        )
+        # Apply a patch to the ECRConnector.get_ecrc() method to return the
+        # stubbed boto3 client.
+        boto_client_mock = unittest.mock.patch(
+            'windlass.remotes.ECRConnector.get_ecrc'
+        )
+        self.addCleanup(boto_client_mock.stop)
+        boto_client_mock.start().return_value = self.ecr_client
+
+    def test_ecr_repo_policies_as_string(self):
+        """Test that ECR policies are passed through to the ECRConnector"""
+        path_prefixes = None
+        self.remote.setup_docker(path_prefixes, ecr_access_policies[0])
+
+        self.assertEqual(
+            self.remote.ecr.new_repo_policy, ecr_access_policies[0]
+        )
+        self.assertIsNone(self.remote.ecr.new_repo_lifecycle_policy)
+
+    def test_ecr_repo_policies_as_dict(self):
+        """Test that ECR policies are passed through to the ECRConnector"""
+        path_prefixes = None
+        policy = {
+            'access': ecr_access_policies[0],
+            'lifecycle': ecr_lifecycle_policies[0],
+        }
+        self.remote.setup_docker(path_prefixes, policy)
+
+        self.assertEqual(self.remote.ecr.new_repo_policy, policy['access'])
+        self.assertEqual(
+            self.remote.ecr.new_repo_lifecycle_policy, policy['lifecycle']
+        )
