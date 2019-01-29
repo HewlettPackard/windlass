@@ -1,6 +1,6 @@
 #!/bin/env python3
 #
-# (c) Copyright 2017-2018 Hewlett Packard Enterprise Development LP
+# (c) Copyright 2017-2019 Hewlett Packard Enterprise Development LP
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -63,6 +63,10 @@ def main():
     parser.add_argument('--product-integration-repo', type=str,
                         help='''Integration repository containing a product-integration.yaml
 configuration''')
+    parser.add_argument('--artifact-name',
+                        default=None,
+                        type=str,
+                        help='''Only enable artifacts with this name.''')
 
     # Download or build
     # - --build-only => build development artifacts
@@ -163,6 +167,7 @@ amount of artifacts to process at any one time.''')
         g.run(
             process,
             ns=ns,
+            artifact_name=ns.artifact_name,
             parallel=not ns.no_parallel,
             docker_user=docker_user,
             docker_password=docker_password)

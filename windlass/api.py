@@ -1,5 +1,5 @@
 #
-# (c) Copyright 2017-2018 Hewlett Packard Enterprise Development LP
+# (c) Copyright 2017-2019 Hewlett Packard Enterprise Development LP
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -382,12 +382,16 @@ class Windlass(object):
         # it later. Provides more useful error handling
         self._failed = result
 
-    def run(self, processor, type=None, parallel=True, **kwargs):
+    def run(self, processor, type=None, artifact_name=None, parallel=True,
+            **kwargs):
         if self._running:
             raise Exception('Windlass is already processing these artifacts')
-
         d = defaultdict(list)
         for artifact in self.artifacts:
+            if artifact_name is not None and artifact.name != artifact_name:
+                logging.debug(
+                    'Skipping artifact %s (--artifact-name)' % artifact.name)
+                continue
             if type is not None and not isinstance(artifact, type):
                 logging.debug(
                     'Skipping artifact %s because wrong type' % artifact.name)

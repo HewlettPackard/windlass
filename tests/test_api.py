@@ -1,5 +1,5 @@
 #
-# (c) Copyright 2018 Hewlett Packard Enterprise Development LP
+# (c) Copyright 2018-2019 Hewlett Packard Enterprise Development LP
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -14,10 +14,12 @@
 # under the License.
 #
 
+import testtools
+import unittest.mock
+
 import windlass.api
 import windlass.charts
 import windlass.images
-import testtools
 
 
 class TestAPI(testtools.TestCase):
@@ -50,3 +52,18 @@ class TestAPI(testtools.TestCase):
     def test_in_place_filter_artifacts_remove_all(self):
         self.windlass.filter_artifacts_in_place(lambda a: False)
         self.assertEqual(len(list(self.windlass.artifacts)), 0)
+
+    @unittest.mock.patch('multiprocessing.Pool')
+    def test_one_artifact_only(self, pool_mock):
+        process = unittest.mock.MagicMock()
+        self.windlass.run(process, artifact_name='some/chart')
+        self.assertEqual(
+            1, len(pool_mock.return_value.apply_async.call_args_list))
+
+    @unittest.mock.patch('multiprocessing.Pool')
+    def test_all_artifacts(self, pool_mock):
+        process = unittest.mock.MagicMock()
+        self.windlass.run(process)
+        self.assertEqual(
+            len(self.windlass.artifacts.items),
+            len(pool_mock.return_value.apply_async.call_args_list))
