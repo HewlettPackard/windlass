@@ -1,5 +1,5 @@
 #
-# (c) Copyright 2017-2018 Hewlett Packard Enterprise Development LP
+# (c) Copyright 2017-2019 Hewlett Packard Enterprise Development LP
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -269,30 +269,33 @@ class Chart(windlass.api.Artifact):
         logging.info('%s: Pushing chart as %s' % (
             self.name, upload_chart_url))
 
-        status_resp = requests.head(upload_chart_url, verify='/etc/ssl/certs')
-        if status_resp.status_code == 200:
-            # Chart already exists so don't try and upload it again
-            logging.info('%s: Chart already exists at %s' % (
-                self.name, upload_chart_url))
-        else:
-            # Artifact does not exist, push it up.
-            auth = requests.auth.HTTPBasicAuth(docker_user, docker_password)
-            resp = requests.put(
-                upload_chart_url,
-                data=data,
-                auth=auth,
-                verify='/etc/ssl/certs')
-            if resp.status_code in (
-                    requests.codes.unauthorized, requests.codes.forbidden):
-                # No retries in this case.
-                raise Exception('Permission error (%s) uploading chart %s' % (
-                    resp, upload_chart_url))
-            elif resp.status_code != 201:
-                raise windlass.exc.RetryableFailure(
-                    'Failed (status: %d) to upload %s' % (
-                        resp.status_code, upload_chart_url))
+        if not kwargs.get('allow_clobber'):
+            status_resp = requests.head(upload_chart_url,
+                                        verify='/etc/ssl/certs')
+            if status_resp.status_code == 200:
+                # Chart already exists so don't try and upload it again
+                logging.info('%s: Chart already exists at %s' % (
+                    self.name, upload_chart_url))
+                return
 
-            logging.info('%s: Successfully pushed chart' % self.name)
+        # Artifact does not exist or we allow clobber, push it up.
+        auth = requests.auth.HTTPBasicAuth(docker_user, docker_password)
+        resp = requests.put(
+            upload_chart_url,
+            data=data,
+            auth=auth,
+            verify='/etc/ssl/certs')
+        if resp.status_code in (
+                requests.codes.unauthorized, requests.codes.forbidden):
+            # No retries in this case.
+            raise Exception('Permission error (%s) uploading chart %s' % (
+                resp, upload_chart_url))
+        elif resp.status_code != 201:
+            raise windlass.exc.RetryableFailure(
+                'Failed (status: %d) to upload %s' % (
+                    resp.status_code, upload_chart_url))
+
+        logging.info('%s: Successfully pushed chart' % self.name)
 
     @windlass.api.fall_back('charts_url')
     def delete(self, version=None, charts_url=None, **kwargs):
