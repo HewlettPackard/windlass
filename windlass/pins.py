@@ -1,5 +1,5 @@
 #
-# (c) Copyright 2017-2018 Hewlett Packard Enterprise Development LP
+# (c) Copyright 2017-2019 Hewlett Packard Enterprise Development LP
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -124,7 +124,7 @@ class ImagePins(Pins):
         super().__init__(config, parent)
         self.key = self.config.get('key', 'images')
 
-    def write_pins(self, artifacts, repository, repodir=None, metadata={}):
+    def write_pins(self, artifacts, repository, repodir=None, metadata=None):
         pin_file = self.get_pin_file(repository)
         if repodir:
             full_pin_file = os.path.join(repodir, pin_file)
@@ -162,7 +162,7 @@ class ImagePins(Pins):
                 current_pins['devtag'] = artifact.devtag
 
             # Update metadata
-            if metadata:
+            if metadata is not None:
                 if 'zing-metadata' not in current_pins:
                     current_pins['zing-metadata'] = {}
                 current_pins['zing-metadata'].update(metadata)
@@ -216,7 +216,7 @@ class LandscapePins(Pins):
     default_pin_file = '{pins_dir}/{name}.yaml'
     default_pins_files_globs = '{pins_dir}/*.yaml'
 
-    def write_pins(self, artifacts, repository, repodir=None, metadata={}):
+    def write_pins(self, artifacts, repository, repodir=None, metadata=None):
         written_files = []
         for artifact in self.iter_artifacts(
                 artifacts, artifacttype=windlass.charts.Chart):
@@ -260,7 +260,7 @@ class LandscapePins(Pins):
             data['release']['chart'] = '%s:%s' % (chartname, artifact.version)
 
             # Store metadata here.
-            if metadata:
+            if metadata is not None:
                 if 'zing-metadata' not in data:
                     data['zing-metadata'] = {}
                 data['zing-metadata'].update(metadata)
@@ -319,7 +319,7 @@ class GenericPins(Pins):
         super().__init__(config, parent)
         self.key = self.config.get('key', 'generic')
 
-    def write_pins(self, artifacts, repository, repodir=None, metadata={}):
+    def write_pins(self, artifacts, repository, repodir=None, metadata=None):
         pin_file = self.get_pin_file(repository)
         if repodir:
             full_pin_file = os.path.join(repodir, pin_file)
@@ -354,7 +354,7 @@ class GenericPins(Pins):
             current_pins['filename'] = artifact.get_filename()
 
             # Update metadata
-            if metadata:
+            if metadata is not None:
                 if 'zing-metadata' not in current_pins:
                     current_pins['zing-metadata'] = {}
                 current_pins['zing-metadata'].update(metadata)
@@ -407,7 +407,7 @@ class OverrideYamlConfiguration(object):
         self.config = config
         self.parent = parent
 
-    def write_pins(self, artifacts, repository, repodir=None, metadata={}):
+    def write_pins(self, artifacts, repository, repodir=None, metadata=None):
         """See windlass/tests/integrationrepo-override/products-integation.yaml
 
         Write out yaml configuration based on the documentation in README.md
@@ -583,7 +583,7 @@ def parse_configuration_pins(repodir=None):
             yield pins
 
 
-def write_pins(artifacts, repository, repodir=None, metadata={}):
+def write_pins(artifacts, repository, repodir=None, metadata=None):
     written_files = []
     for pins in parse_configuration_pins(repodir):
         written_files.extend(
