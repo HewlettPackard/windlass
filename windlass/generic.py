@@ -1,5 +1,5 @@
 #
-# (c) Copyright 2017-2018 Hewlett Packard Enterprise Development LP
+# (c) Copyright 2017-2019 Hewlett Packard Enterprise Development LP
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -129,7 +129,8 @@ class Generic(windlass.api.Artifact):
 
         resp = requests.get(
             artifact_url,
-            verify='/etc/ssl/certs')
+            verify='/etc/ssl/certs',
+            timeout=5)
         if resp.status_code != 200:
             raise windlass.exc.RetryableFailure(
                 'Failed to download artifact %s' % (
