@@ -4,26 +4,26 @@
 #
 #    pip-compile --output-file requirements.txt requirements.in
 #
-boto3==1.7.4
-botocore==1.10.4          # via boto3, s3transfer
-certifi==2018.1.18        # via requests
+boto3==1.9.134
+botocore==1.12.134        # via boto3, s3transfer
+certifi==2019.3.9         # via requests
 chardet==3.0.4            # via requests
-docker-pycreds==0.2.2     # via docker
-docker==3.2.1
+docker-pycreds==0.4.0     # via docker
+docker==3.7.2
 docutils==0.14            # via botocore
-gitdb2==2.0.3             # via gitpython
-gitpython==2.1.9
-idna==2.6                 # via requests
-jinja2==2.10
-jmespath==0.9.3           # via boto3, botocore
-markupsafe==1.0           # via jinja2
+gitdb2==2.0.5             # via gitpython
+gitpython==2.1.11
+idna==2.8                 # via requests
+jinja2==2.10.1
+jmespath==0.9.4           # via boto3, botocore
+markupsafe==1.1.1         # via jinja2
 prettytable==0.7.2
-python-dateutil==2.6.1    # via botocore
-pyyaml==3.12
-requests==2.18.4          # via docker
-ruamel.yaml==0.15.37
-s3transfer==0.1.13        # via boto3
-six==1.11.0               # via docker, docker-pycreds, python-dateutil, websocket-client
-smmap2==2.0.3             # via gitdb2
-urllib3==1.22             # via requests
-websocket-client==0.47.0  # via docker
+python-dateutil==2.8.0    # via botocore
+pyyaml==5.1
+requests==2.21.0          # via docker
+ruamel.yaml==0.15.94
+s3transfer==0.2.0         # via boto3
+six==1.12.0               # via docker, docker-pycreds, python-dateutil, websocket-client
+smmap2==2.0.5             # via gitdb2
+urllib3==1.24.2           # via botocore, requests
+websocket-client==0.56.0  # via docker

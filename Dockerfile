@@ -1,5 +1,5 @@
 #
-# (c) Copyright 2017-2018 Hewlett Packard Enterprise Development LP
+# (c) Copyright 2017-2019 Hewlett Packard Enterprise Development LP
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -14,7 +14,7 @@
 # under the License.
 #
 
-FROM alpine:3.5 as base
+FROM alpine:3.9.3 as base
 
 RUN set -e \
     && apk add --update --no-cache \
@@ -50,7 +50,7 @@ RUN set -e \
 
 FROM base
 
-ENV PYTHONPATH=/usr/local/lib/python3.5/site-packages
+ENV PYTHONPATH=/usr/local/lib/python3.6/site-packages
 COPY --from=build /usr/local /usr/local
 
 RUN set -e \
