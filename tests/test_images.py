@@ -14,10 +14,12 @@
 # under the License.
 #
 
-import windlass.images
 import tarfile
 import tempfile
+
 import testtools
+
+import windlass.images
 
 
 class TestImageAPI(testtools.TestCase):

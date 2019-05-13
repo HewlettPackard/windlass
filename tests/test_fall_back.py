@@ -14,8 +14,9 @@
 # under the License.
 #
 
-import windlass.api
 import testtools
+
+import windlass.api
 
 
 class FallbackFailure(Exception):

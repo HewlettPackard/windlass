@@ -15,17 +15,19 @@
 #
 
 import fnmatch
+import glob
+import importlib
+import logging
+import os.path
+
+import git
+import jinja2
+import ruamel.yaml
+
 import windlass.charts
 import windlass.generic
 import windlass.images
 import windlass.tools
-import git
-import glob
-import importlib
-import jinja2
-import logging
-import os.path
-import ruamel.yaml
 
 
 class Pins(object):

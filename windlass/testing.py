@@ -21,10 +21,12 @@ Test support code for modules that use windlass
 # modules (e.g. remotes.py)?
 
 import base64
-import botocore.stub
 import contextlib
-import windlass.remotes
 import logging
+
+import botocore.stub
+
+import windlass.remotes
 
 log = logging.getLogger(__name__)
 
@@ -74,8 +76,8 @@ class FakeECRConnector(windlass.remotes.ECRConnector):
 
     def upload(self, local_name, upload_name=None, upload_tag=None):
 
-        # TODO(desbonne): Refactor windlass.remotes.ECRConnector to separate this
-        # ECRConnector.upload() code to its own func:
+        # TODO(desbonne): Refactor windlass.remotes.ECRConnector to separate
+        # this ECRConnector.upload() code to its own func:
         local_image_name, local_image_tag = local_name.split(':')
         if upload_name is None:
             upload_name = local_image_name

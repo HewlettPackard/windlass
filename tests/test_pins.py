@@ -14,16 +14,18 @@
 # under the License.
 #
 
+import os.path
+import shutil
+import tempfile
+
+import ruamel.yaml
+import testtools
+import yaml
+
 import windlass.charts
 import windlass.generic
 import windlass.images
 import windlass.pins
-import os.path
-import ruamel.yaml
-import shutil
-import tempfile
-import testtools
-import yaml
 
 
 class TestPins(testtools.TestCase):
@@ -149,7 +151,8 @@ pins:
 
         # Charts
         self.assertEqual(pins['example1'], '0.0.1')
-        self.assertIsInstance(artifact_types['example1'], windlass.charts.Chart)
+        self.assertIsInstance(artifact_types['example1'],
+                              windlass.charts.Chart)
 
     def test_diff_pins(self):
         pins_lhs = windlass.pins.read_pins(self.repodir)

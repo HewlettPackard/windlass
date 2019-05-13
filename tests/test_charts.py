@@ -14,15 +14,16 @@
 # under the License.
 #
 
-import docker
-import git
 import io
 import os
 import shutil
 import tarfile
 import tempfile
-import testtools
 import yaml
+
+import docker
+import git
+import testtools
 
 import windlass.charts
 import windlass.exc
@@ -104,7 +105,9 @@ class TestCharts(testtools.TestCase):
         # Do this by expecting the exception that occurs in the old code when
         # the bogus url fails.
 
-        remote = windlass.remotes.ArtifactoryRemote(username=None, password=None)
+        remote = windlass.remotes.ArtifactoryRemote(
+            username=None, password=None
+        )
 
         with self.assertRaisesRegex(Exception,
                                     'Invalid URL.*No schema supplied.'):

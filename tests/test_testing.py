@@ -16,13 +16,14 @@
 
 """Tests for the windlass.testing module"""
 
-import windlass.remotes
-import windlass.testing
 import logging
+import unittest.mock
 
 import fixtures
 import testtools
-import unittest.mock
+
+import windlass.remotes
+import windlass.testing
 
 
 class TestFakeECRConnector(testtools.TestCase):
@@ -41,7 +42,9 @@ class TestFakeECRConnector(testtools.TestCase):
 
     def test_upload(self):
         c = windlass.testing.FakeECRConnector(
-            windlass.remotes.AWSCreds('fake_user', 'fake_secret', 'fake-region')
+            windlass.remotes.AWSCreds(
+                'fake_user', 'fake_secret', 'fake-region'
+            )
         )
         img = 'fake_image:latest'
         self.assertIn(img, c.upload(img))
@@ -81,8 +84,10 @@ class TestFakeAWSRemote(testtools.TestCase):
         # Mock object returned by patch() is not pickleable.
         def pf(*args, **kwargs):
             return None
-        with unittest.mock.patch('windlass.charts.Chart.export_stream', new=pf):
-            with unittest.mock.patch('windlass.generic.Generic.upload', new=pf):
+        with unittest.mock.patch(
+                'windlass.charts.Chart.export_stream', new=pf):
+            with unittest.mock.patch(
+                    'windlass.generic.Generic.upload', new=pf):
                 windlass_obj.upload(
                     remote=r, charts_url='None', docker_image_registry='None',
                     generic_url='None',

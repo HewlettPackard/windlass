@@ -15,11 +15,13 @@
 #
 
 import base64
+import unittest
+
 import boto3
 import botocore.stub
-import windlass.remotes
 import testtools
-import unittest
+
+import windlass.remotes
 
 aws_region = 'test-region'
 aws_account = '012345678901'

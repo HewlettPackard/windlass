@@ -15,9 +15,11 @@
 # under the License.
 #
 from argparse import ArgumentParser
-from windlass.pins import diff_pins_dir
+
 from git import Repo
 from prettytable import PrettyTable
+
+from windlass.pins import diff_pins_dir
 
 
 def main():

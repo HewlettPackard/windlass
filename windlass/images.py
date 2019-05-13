@@ -14,16 +14,17 @@
 # under the License.
 #
 
-import docker
-import windlass.api
-import windlass.exc
-import windlass.tools
-from git import Repo
 import logging
 import multiprocessing
 import os
 
+import docker
+from git import Repo
 import yaml
+
+import windlass.api
+import windlass.exc
+import windlass.tools
 
 BUILDARG_PREFIX = 'GATHER_BUILDARG_'
 

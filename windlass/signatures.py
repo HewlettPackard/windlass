@@ -18,10 +18,11 @@
 An artifact class for cryptographic signatures of artifact.
 """
 
-import windlass.api
 import io
 import logging
 import os
+
+import windlass.api
 
 
 @windlass.api.register_type('signatures')

@@ -15,11 +15,13 @@
 #
 
 import fnmatch
-import windlass.api
 import glob
 import logging
 import os
+
 import requests
+
+import windlass.api
 
 
 class LocalArtifactCopyMissing(Exception):
