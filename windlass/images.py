@@ -1,5 +1,5 @@
 #
-# (c) Copyright 2017-2018 Hewlett Packard Enterprise Development LP
+# (c) Copyright 2017-2019 Hewlett Packard Enterprise Development LP
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -238,13 +238,14 @@ class Image(windlass.api.Artifact):
             repopath = self.metadata['repopath']
 
             dockerfile = image_def.get('dockerfile', None)
+            pull = image_def.get('pull', 'true').lower() == 'true'
             logging.debug('Expecting repository at %s' % repopath)
             build_image_from_local_repo(repopath,
                                         image_def['context'],
                                         image_def['name'],
                                         nocache=False,
                                         dockerfile=dockerfile,
-                                        pull=True)
+                                        pull=pull)
             logging.info('Get image %s completed', image_def['name'])
 
     def _delete_image(self, image):
