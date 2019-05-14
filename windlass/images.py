@@ -238,7 +238,11 @@ class Image(windlass.api.Artifact):
             repopath = self.metadata['repopath']
 
             dockerfile = image_def.get('dockerfile', None)
-            pull = image_def.get('pull', 'true').lower() == 'true'
+            pull_option = image_def.get('pull', True)
+            if isinstance(pull_option, bool):
+                pull = pull_option
+            else:
+                pull = pull_option.lower() == 'true'
             logging.debug('Expecting repository at %s' % repopath)
             build_image_from_local_repo(repopath,
                                         image_def['context'],
