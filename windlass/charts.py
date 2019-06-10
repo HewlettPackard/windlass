@@ -61,7 +61,7 @@ class Chart(windlass.api.Artifact):
     def get_local_version(self):
         chartdir = self.get_chart_dir()
         with open(os.path.join(chartdir, 'Chart.yaml')) as fp:
-            chart = yaml.load(fp)
+            chart = yaml.load(fp, Loader=yaml.SafeLoader)
 
         return chart['version']
 

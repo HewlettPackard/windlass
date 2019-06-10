@@ -177,7 +177,7 @@ class Artifacts(object):
                 continue
 
             with open(product_file, 'r') as f:
-                product_def = yaml.load(f.read())
+                product_def = yaml.load(f.read(), Loader=yaml.SafeLoader)
 
             # TODO(kerrin) this is not a deep merge, and is pretty poor.
             # Will lose data on you.

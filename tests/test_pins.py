@@ -30,6 +30,9 @@ import windlass.pins
 
 class TestPins(testtools.TestCase):
 
+    def _yaml_load(self, *args, **kwargs):
+        return yaml.load(*args, Loader=yaml.SafeLoader, **kwargs)
+
     def setUp(self):
         super().setUp()
         self.tempdir = tempfile.TemporaryDirectory()
@@ -64,7 +67,7 @@ class TestPins(testtools.TestCase):
 
         self.assertEqual(updated_files, ['aws/api.yaml'])
 
-        data = self.yaml.load(open(os.path.join(repodir, 'aws/api.yaml')))
+        data = self._yaml_load(open(os.path.join(repodir, 'aws/api.yaml')))
         self.assertEqual(data, {
             'configuration': {'my_app_mac': '0.1',
                               'my_app_win': '0.1',

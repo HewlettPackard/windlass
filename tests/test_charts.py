@@ -33,6 +33,9 @@ import windlass.tools
 
 class TestCharts(testtools.TestCase):
 
+    def _yaml_load(self, *args, **kwargs):
+        return yaml.load(*args, Loader=yaml.SafeLoader, **kwargs)
+
     def _build_chart(self):
         """Build the test chart.
 
@@ -48,8 +51,9 @@ class TestCharts(testtools.TestCase):
             },
             working_dir=self.repodir,
             environment=windlass.tools.load_proxy())
-        products = yaml.load(
-            open(os.path.join(self.repodir, 'products/test-chart.yml')))
+        products = self._yaml_load(
+            open(os.path.join(self.repodir, 'products/test-chart.yml')),
+        )
         return windlass.charts.Chart(products['charts'][0])
 
     def setUp(self):
@@ -76,9 +80,9 @@ class TestCharts(testtools.TestCase):
         # Test chart
         stream = open(os.path.join(self.repodir, 'ubuntu-0.0.1.tgz'), 'rb')
         tar = tarfile.open(fileobj=stream, mode='r:gz')
-        chart_data = yaml.load(tar.extractfile('ubuntu/Chart.yaml'))
+        chart_data = self._yaml_load(tar.extractfile('ubuntu/Chart.yaml'))
         self.assertEqual(chart_data['version'], '0.0.1')
-        values_data = yaml.load(tar.extractfile('ubuntu/values.yaml'))
+        values_data = self._yaml_load(tar.extractfile('ubuntu/values.yaml'))
         self.assertEqual(values_data['image']['repository'], 'ubuntu')
         self.assertEqual(values_data['image'].get('registry', None), None)
         self.assertEqual(values_data['image']['tag'], '16.04')
@@ -89,10 +93,10 @@ class TestCharts(testtools.TestCase):
         # Test the output.
         stream = io.BytesIO(data)
         tar = tarfile.open(fileobj=stream, mode='r:gz')
-        chart_data = yaml.load(tar.extractfile('ubuntu/Chart.yaml'))
+        chart_data = self._yaml_load(tar.extractfile('ubuntu/Chart.yaml'))
         self.assertEqual(chart_data['version'], '2.1.0')
 
-        values_data = yaml.load(tar.extractfile('ubuntu/values.yaml'))
+        values_data = self._yaml_load(tar.extractfile('ubuntu/values.yaml'))
         self.assertEqual(values_data['image']['repository'], 'ubuntu')
         self.assertEqual(values_data['image']['registry'], 'reg')
         self.assertEqual(values_data['image']['tag'], '2.1.0')
