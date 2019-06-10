@@ -20,7 +20,6 @@ import os
 from requests import get
 from shutil import copytree
 from tempfile import TemporaryDirectory
-import test.support
 import testtools
 from testtools.matchers import Contains
 from testtools.matchers import Equals
@@ -35,12 +34,16 @@ class FakeRegistry(testtools.TestCase):
 
     @classmethod
     def setUpClass(self):
-        self.registry_port = test.support.find_unused_port()
         self.client = docker.from_env(version='auto')
         self.registry = self.client.containers.run(
             'registry:2',
             detach=True,
-            ports={'5000/tcp': self.registry_port})
+            ports={'5000/tcp': None})
+
+        self.registry.reload()
+        self.registry_port = int(
+            self.registry.ports['5000/tcp'][0]['HostPort']
+        )
         self.registry_url = "http://127.0.0.1:%d/" % self.registry_port
 
     @classmethod
