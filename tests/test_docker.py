@@ -180,6 +180,18 @@ class TestDockerUtils(tests.test_e2e.FakeRegistry):
         client = docker.from_env(
             version='auto',
             timeout=180)
-        self.assertEqual(
-            'somevalue',
-            client.containers.run(im, remove=True).decode())
+
+        # To capture all output to inspect, must delay removal until
+        # after retrieval of logs otherwise the API can sometimes return
+        # an empty result
+        c = client.containers.create(im)
+        try:
+            c.start()
+            result = c.wait()
+            output = c.logs(stdout=True, stderr=True)
+        finally:
+            c.stop()
+            c.remove()
+        # make sure completed successfully
+        self.assertEqual(0, result['StatusCode'])
+        self.assertEqual('somevalue', output.decode())
