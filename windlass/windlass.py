@@ -96,10 +96,11 @@ configuration''')
         default=['registry.hub.docker.com'],
         help='Registry of images.')
     download_group.add_argument(
-        '--download-charts-url', action='append',
+        '--download-charts-url', action='append', default=[],
         help='Helm repositories.')
     download_group.add_argument(
-        '--download-generic-url', action='append')
+        '--download-generic-url', action='append', default=[],
+    )
 
     push_group = parser.add_argument_group('Push options')
     push_group.add_argument('--push-docker-registry', action='append',
