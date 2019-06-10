@@ -39,7 +39,7 @@ def check_docker_stream(stream):
         if not line:
             continue
 
-        data = yaml.load(line)
+        data = yaml.load(line, Loader=yaml.SafeLoader)
         if 'status' in data:
             if 'id' in data:
                 msg = '%s layer %s: %s' % (name,
@@ -106,7 +106,7 @@ def build_verbosly(name, path, nocache=False, dockerfile=None,
     errors = []
     output = []
     for line in stream:
-        data = yaml.load(line.decode())
+        data = yaml.load(line.decode(), Loader=yaml.SafeLoader)
         if 'stream' in data:
             for out in data['stream'].split('\n\r'):
                 logging.debug('%s: %s', name, out.strip())

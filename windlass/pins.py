@@ -434,7 +434,10 @@ class OverrideYamlConfiguration(object):
 
             preamble = ''
             try:
-                data = yaml.load(open(full_conf_file))
+                data = ruamel.yaml.load(
+                    open(full_conf_file),
+                    Loader=ruamel.yaml.RoundTripLoader
+                )
             except FileNotFoundError:
                 basedir = os.path.dirname(full_conf_file)
                 os.makedirs(basedir, exist_ok=True)
