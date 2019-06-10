@@ -162,7 +162,7 @@ class TestDockerUtils(tests.test_e2e.FakeRegistry):
         )
         self.useFixture(
             fixtures.EnvironmentVariable(
-                'GATHER_BUILDARG_ARGUMENT',
+                'WINDLASS_BUILDARG_ARGUMENT',
                 'somevalue'
             )
         )
