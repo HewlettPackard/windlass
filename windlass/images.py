@@ -26,7 +26,7 @@ import windlass.api
 import windlass.exc
 import windlass.tools
 
-BUILDARG_PREFIX = 'GATHER_BUILDARG_'
+BUILDARG_PREFIX = 'WINDLASS_BUILDARG_'
 
 
 def check_docker_stream(stream):
