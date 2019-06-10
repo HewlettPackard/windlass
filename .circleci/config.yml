@@ -1,0 +1,187 @@
+# (c) Copyright 2019 Hewlett Packard Enterprise Development LP
+#
+# Check https://circleci.com/docs/2.0/language-python/ for more details
+#
+version: 2.1
+
+workflows:
+  build and publish:
+    jobs:
+      - build-container
+      - verify-container:
+          requires:
+            - build-container
+      - publish-container-hub:
+          requires:
+            - verify-container
+      - publish-container-quay:
+          requires:
+            - verify-container
+
+defaults:
+  - restore_cache: &python_deps_restore_cache
+      keys:
+        - &python_deps_cache_key v1-dependencies-{{ checksum "requirements.txt" }}-{{ checksum "test-requirements.txt" }}
+        - v1-dependencies-
+
+  - save_cache: &python_deps_save_cache
+      paths:
+        - "~/.tox"
+        - "~/.cache/pip"
+      key: *python_deps_cache_key
+
+jobs:
+
+  build-container:
+    docker:
+      - image: circleci/python:3.6
+
+    working_directory: ~/repo
+
+    steps:
+      - checkout
+      - setup_remote_docker
+      # Download and cache dependencies
+      - restore_cache: *python_deps_restore_cache
+
+      - run:
+          name: Setup Environment Variables
+          command: |
+            echo 'export PATH="~/.local/bin:${PATH}"' >> $BASH_ENV
+      - run:
+          name: Install Project Locally
+          command: |
+            pip install --user -e .
+      - run:
+          name: Build Image From Local Install
+          command: |
+            windlass --debug --build-only
+
+      - run:
+          name: Archive Docker Image
+          command: |
+            docker save -o image.tar zing/windlass
+
+      - save_cache: *python_deps_save_cache
+      - persist_to_workspace:
+          root: ~/repo
+          paths:
+            - image.tar
+
+  verify-container:
+    docker:
+      - image: circleci/python:3.6
+
+    working_directory: ~/repo
+
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Load Archived Docker Image
+          command: docker load -i /tmp/workspace/image.tar
+      - run:
+          name: Build self using built image
+          command: |
+            docker create \
+                -e DOCKER_CERT_PATH \
+                -e DOCKER_HOST \
+                -e DOCKER_TLS_VERIFY \
+                -e NO_PROXY \
+                -v /src \
+                -w /src \
+                --name windlass \
+                zing/windlass:latest \
+                    --debug \
+                    --build-only
+
+            # specifying the workspace directory ~/repo doesn't work
+            docker cp . windlass:/src
+            docker cp ${DOCKER_CERT_PATH} windlass:${DOCKER_CERT_PATH}
+
+            docker start -a windlass
+      - persist_to_workspace:
+          root: ~/repo
+          paths:
+            - artifacts.yaml
+
+  publish-container-quay:
+    docker:
+      - image: circleci/python:3.6
+
+    working_directory: ~/repo
+
+    steps:
+      - attach_workspace:
+          at: ~/repo
+      - setup_remote_docker
+      - run:
+          name: Load Archived Docker Image
+          command: docker load -i ./image.tar
+      - run:
+          name: Publish image using built image
+          command: |
+            if [[ "${CIRCLE_BRANCH}" == "master" ]]
+            then
+                BUILD_VERSION="latest"
+            elif [[ -n "${CIRCLE_PULL_REQUEST}" ]] || [[ -n "${CIRCLE_PR_NUMBER}" ]]
+            then
+                BUILD_VERSION="pr${CIRCLE_PR_NUMBER:-${CIRCLE_PULL_REQUEST##*/}}"
+            fi
+            CIRCLE_TAG="${CIRCLE_TAG/v/}"
+            BUILD_TAG="${CIRCLE_TAG:-${BUILD_VERSION:-${CIRCLE_BRANCH}}}"
+            docker create \
+                -e DOCKER_CERT_PATH \
+                -e DOCKER_HOST \
+                -e DOCKER_TLS_VERIFY \
+                -e NO_PROXY \
+                -e DOCKER_USER=${QUAY_USER} \
+                -e DOCKER_TOKEN=${QUAY_TOKEN} \
+                -v /src \
+                -w /src \
+                --name windlass \
+                zing/windlass:latest \
+                    --debug \
+                    --push-only \
+                    --push-version "${BUILD_TAG}" \
+                    --push-docker-registry quay.io
+
+            # specifying the workspace directory ~/repo doesn't work
+            docker cp . windlass:/src
+            docker cp ${DOCKER_CERT_PATH} windlass:${DOCKER_CERT_PATH}
+
+            docker start -a windlass
+
+  publish-container-hub:
+    docker:
+      - image: circleci/python:3.6
+
+    working_directory: ~/repo
+
+    steps:
+      - attach_workspace:
+          at: ~/repo
+      - setup_remote_docker
+      - run:
+          name: Load Archived Docker Image
+          command: docker load -i ./image.tar
+      - run:
+          name: Publish image using built image
+          command: |
+            if [[ "${CIRCLE_BRANCH}" == "master" ]]
+            then
+                BUILD_VERSION="latest"
+            elif [[ -n "${CIRCLE_PULL_REQUEST}" ]] || [[ -n "${CIRCLE_PR_NUMBER}" ]]
+            then
+                BUILD_VERSION="pr${CIRCLE_PR_NUMBER:-${CIRCLE_PULL_REQUEST##*/}}"
+            fi
+            CIRCLE_TAG="${CIRCLE_TAG/v/}"
+            BUILD_TAG="${CIRCLE_TAG:-${BUILD_VERSION:-${CIRCLE_BRANCH}}}"
+
+            # HPE docker org doesn't match github org name
+            HPE_IMAGE_NAME=hewlettpackardenterprise/windlass
+            docker tag zing/windlass:latest ${HPE_IMAGE_NAME}:${BUILD_TAG}
+            docker login -u "${HUB_USER}" -p "${HUB_TOKEN}"
+            docker push ${HPE_IMAGE_NAME}:${BUILD_TAG}
