@@ -17,12 +17,20 @@
 import tarfile
 import tempfile
 
+import docker
 import testtools
 
 import windlass.images
 
 
 class TestImageAPI(testtools.TestCase):
+
+    def setUp(self):
+
+        super().setUp()
+
+        client = docker.from_env(version='auto')
+        client.images.pull('alpine:3.5')
 
     def test_missing_artifact(self):
         im = windlass.images.Image(dict(
@@ -38,7 +46,7 @@ class TestImageAPI(testtools.TestCase):
     def test_export(self):
         im = windlass.images.Image(dict(
             name='alpine',
-            devtag='3.5'
+            version='3.5'
             ))
 
         with tempfile.TemporaryDirectory() as tmpdir:
