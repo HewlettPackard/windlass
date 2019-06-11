@@ -1,0 +1,26 @@
+---
+notifications:
+  email: false
+
+branches:
+  only:
+    - master
+
+dist: xenial
+language: python
+
+services:
+  - docker
+
+install: pip install tox
+script: tox
+matrix:
+  include:
+    - python: 3.7
+      env: TOXENV=pep8
+    - python: 3.7
+      env: TOXENV=build,tests
+    - python: 3.6
+      env: TOXENV=build,tests
+    - python: 3.5
+      env: TOXENV=build,tests
