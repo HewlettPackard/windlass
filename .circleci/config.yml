@@ -36,8 +36,6 @@ jobs:
     docker:
       - image: circleci/python:3.6
 
-    working_directory: ~/repo
-
     steps:
       - checkout
       - setup_remote_docker
@@ -64,15 +62,13 @@ jobs:
 
       - save_cache: *python_deps_save_cache
       - persist_to_workspace:
-          root: ~/repo
+          root: .
           paths:
             - image.tar
 
   verify-container:
     docker:
       - image: circleci/python:3.6
-
-    working_directory: ~/repo
 
     steps:
       - attach_workspace:
@@ -97,13 +93,13 @@ jobs:
                     --debug \
                     --build-only
 
-            # specifying the workspace directory ~/repo doesn't work
+            # specifying the workspace directory doesn't work
             docker cp . windlass:/src
             docker cp ${DOCKER_CERT_PATH} windlass:${DOCKER_CERT_PATH}
 
             docker start -a windlass
       - persist_to_workspace:
-          root: ~/repo
+          root: .
           paths:
             - artifacts.yaml
 
@@ -111,11 +107,9 @@ jobs:
     docker:
       - image: circleci/python:3.6
 
-    working_directory: ~/repo
-
     steps:
       - attach_workspace:
-          at: ~/repo
+          at: .
       - setup_remote_docker
       - run:
           name: Load Archived Docker Image
@@ -148,7 +142,7 @@ jobs:
                     --push-version "${BUILD_TAG}" \
                     --push-docker-registry quay.io
 
-            # specifying the workspace directory ~/repo doesn't work
+            # specifying the workspace directory doesn't work
             docker cp . windlass:/src
             docker cp ${DOCKER_CERT_PATH} windlass:${DOCKER_CERT_PATH}
 
@@ -158,11 +152,9 @@ jobs:
     docker:
       - image: circleci/python:3.6
 
-    working_directory: ~/repo
-
     steps:
       - attach_workspace:
-          at: ~/repo
+          at: .
       - setup_remote_docker
       - run:
           name: Load Archived Docker Image
