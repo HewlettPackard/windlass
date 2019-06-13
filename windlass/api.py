@@ -20,6 +20,7 @@ import git
 import logging
 import multiprocessing
 import os.path
+import re
 import shutil
 import tempfile
 import urllib.parse
@@ -27,7 +28,7 @@ import yaml
 
 import windlass.exc
 
-DEFAULT_PRODUCT_FILES = ['artifacts.yaml']
+DEFAULT_PRODUCT_FILES = ['artifacts.yaml', '.windlass.yaml']
 # Pick the first of these as the canonical name.
 CANONICAL_PRODUCT_FILE = DEFAULT_PRODUCT_FILES[0]
 
@@ -143,9 +144,8 @@ class Artifact(object):
 
 class Artifacts(object):
 
-    def __init__(self, products_to_parse=None, workspace=None, artifacts=None):
-        if not products_to_parse:
-            products_to_parse = DEFAULT_PRODUCT_FILES
+    def __init__(self, data=None, workspace=None, artifacts=None):
+
         self.data = {}
         self.tempdir = tempfile.mkdtemp()
 
@@ -153,7 +153,7 @@ class Artifacts(object):
             self.items = artifacts
         else:
             self.items = self.load(
-                products_to_parse,
+                data or {},
                 workspace=workspace,
                 # Default metadata to assign to arifacts
                 repopath=os.path.abspath('.'))
@@ -163,93 +163,79 @@ class Artifacts(object):
             shutil.rmtree(self.tempdir)
 
     def load(self,
-             products_to_parse,
+             data,
              workspace=None,
              repopath=None,
              **metadata):
         artifacts = []
 
-        for product_file in products_to_parse:
-            if not os.path.exists(product_file):
-                logging.debug(
-                    'Products file %s does not exist, skipping' % (
-                        product_file))
-                continue
+        for key, cls in _products_registry.items():
+            if key in data:
+                for artifact_def in data[key]:
+                    repourl = artifact_def.get('repo', None)
+                    if repourl and repourl != '.':
+                        # checkout repo and load
+                        # path begins with / and can end with a .git, both
+                        # of which we remove
+                        path = urllib.parse.urlparse(repourl).path. \
+                            rsplit('.git', 1)[0]. \
+                            split('/', 1)[1]
 
-            with open(product_file, 'r') as f:
-                product_def = yaml.load(f.read(), Loader=yaml.SafeLoader)
+                        # See if we have the remote repository checked out
+                        # in the workspace, otherwise check it out.
+                        destpath = None
+                        if workspace:
+                            local_dev_path = os.path.join(
+                                workspace,
+                                path.split('/', 1).pop())
 
-            # TODO(kerrin) this is not a deep merge, and is pretty poor.
-            # Will lose data on you.
-            self.data.update(product_def)
+                            if os.path.exists(local_dev_path):
+                                destpath = local_dev_path
+                        if not destpath:
+                            destpath = os.path.join(self.tempdir, path)
+                            if not os.path.exists(destpath):
+                                git.Repo.clone_from(
+                                    repourl,
+                                    destpath,
+                                    depth=1,
+                                    single_branch=True)
 
-            for key, cls in _products_registry.items():
-                if key in product_def:
-                    for artifact_def in product_def[key]:
-                        repourl = artifact_def.get('repo', None)
-                        if repourl and repourl != '.':
-                            # checkout repo and load
-                            # path begins with / and can end with a .git, both
-                            # of which we remove
-                            path = urllib.parse.urlparse(repourl).path. \
-                                rsplit('.git', 1)[0]. \
-                                split('/', 1)[1]
-
-                            # See if we have the remote repository checked out
-                            # in the workspace, otherwise check it out.
-                            destpath = None
-                            if workspace:
-                                local_dev_path = os.path.join(
-                                    workspace,
-                                    path.split('/', 1).pop())
-
-                                if os.path.exists(local_dev_path):
-                                    destpath = local_dev_path
-                            if not destpath:
-                                destpath = os.path.join(self.tempdir, path)
-                                if not os.path.exists(destpath):
-                                    git.Repo.clone_from(
-                                        repourl,
-                                        destpath,
-                                        depth=1,
-                                        single_branch=True)
-
-                            items = self.load(
-                                map(
-                                    lambda conf: os.path.join(
-                                        destpath, conf),
-                                    DEFAULT_PRODUCT_FILES),
-                                # Override default system metadata
-                                repopath=destpath,
-                                **metadata
+                        items = self.load(
+                            map(
+                                lambda conf: os.path.join(
+                                    destpath, conf),
+                                DEFAULT_PRODUCT_FILES),
+                            # Override default system metadata
+                            repopath=destpath,
+                            **metadata
+                        )
+                        if not items:
+                            logging.warning(
+                                'No artifacts found in %s - missing %s?',
+                                repourl, CANONICAL_PRODUCT_FILE
                             )
-                            if not items:
-                                logging.warning(
-                                    'No artifacts found in %s - missing %s?',
-                                    repourl, CANONICAL_PRODUCT_FILE
-                                )
-                            nameditems = [
-                                item for item in items
-                                if item.name == artifact_def.get('name')]
-                            if not nameditems:
-                                raise Exception(
-                                    'Failed to find %s in %s - check %s' % (
-                                        artifact_def['name'], repourl,
-                                        CANONICAL_PRODUCT_FILE))
-                            elif len(nameditems) > 1:
-                                raise Exception(
-                                    'Found %d of %s in %s' % (
-                                        len(nameditems),
-                                        artifact_def['name'],
-                                        repourl))
+                        nameditems = [
+                            item for item in items
+                            if item.name == artifact_def.get('name')]
+                        if not nameditems:
+                            raise Exception(
+                                'Failed to find %s in %s - check %s' % (
+                                    artifact_def['name'], repourl,
+                                    CANONICAL_PRODUCT_FILE))
+                        elif len(nameditems) > 1:
+                            raise Exception(
+                                'Found %d of %s in %s' % (
+                                    len(nameditems),
+                                    artifact_def['name'],
+                                    repourl))
 
-                            artifact = nameditems[0]
-                        else:
-                            artifact = cls(artifact_def)
-                            artifact.metadata['repopath'] = repopath
-                            artifact.metadata.update(metadata)
+                        artifact = nameditems[0]
+                    else:
+                        artifact = cls(artifact_def)
+                        artifact.metadata['repopath'] = repopath
+                        artifact.metadata.update(metadata)
 
-                        artifacts.append(artifact)
+                    artifacts.append(artifact)
 
         return artifacts
 
@@ -363,17 +349,87 @@ class Windlass(object):
                  artifacts=None,
                  workspace=None,
                  pool_size=4):
-        if artifacts is not None:
-            self.artifacts = artifacts
-        else:
-            self.artifacts = Artifacts(products_to_parse, workspace)
-        self.max_retries = 3
-        self.retry_backoff = 5
 
         self.pool_size = pool_size
 
+        self.configs = []
+        self.max_retries = 3
+        self.retry_backoff = 5
+
+        if artifacts is not None:
+            self.artifacts = artifacts
+        else:
+            self.artifacts = Artifacts(
+                self._load_config(products_to_parse),
+                workspace
+            )
+
         self._running = False
         self._failed = False
+
+    def _load_config(self, configs):
+        data = {}
+
+        for cfile in configs:
+            if os.path.exists(cfile):
+                logging.debug("Reading file '%s' for config data", cfile)
+                with open(cfile, 'r') as f:
+                    conf_data = yaml.load(f.read(), Loader=yaml.SafeLoader)
+                self.configs.append(cfile)
+            elif hasattr(cfile, 'read'):
+                logging.debug("Reading object '%s' for config data", cfile)
+                conf_data = yaml.load(cfile.read(), Loader=yaml.SafeLoader)
+                self.configs.append(str(cfile))
+            else:
+                logging.debug(
+                    "Config '%s' is not a valid file or file like object, "
+                    "skipping", cfile
+                )
+                continue
+
+            # TODO(kerrin) this is not a deep merge, and is pretty poor.
+            # Will lose data on you.
+            data.update(conf_data)
+
+        # if nothing loaded, provide some automatic configuration
+        if not data:
+            # check if in a git repo to define the image name based on an
+            # assumed <org>/<repo> naming, if there is a way to get the base
+            # url it would make it easier to handle hosting services that
+            # support multiple levels of nesting
+            try:
+                repo = git.Repo()
+            except git.exc.InvalidGitRepositoryError:
+                # not a git repo so can't perform any further auto config
+                return data
+
+            logging.info("Auto config from repo")
+            # handle multiple remotes for dev envs
+            try:
+                remote = repo.head.reference.tracking_branch().remote_name
+            except Exception:
+                remote = 'origin'
+            # consider replacing with giturlparse or git-url-parse if any
+            # issues encountered with parsing
+            repourl = next(repo.remotes[remote].urls)
+            urlparts = re.split(':|/', re.sub('.git$', '', repourl))
+            name = '/'.join(urlparts[-2:])
+
+            if os.path.exists(os.path.join(repo.working_dir, 'Dockerfile')):
+
+                data = {
+                    'images': [
+                        {
+                            'name': name.lower(),  # docker limitation
+                            'context': '.',
+                            'floating_tag': 'latest',
+                        }
+                    ]
+                }
+                self.configs.append("<auto config>")
+
+        logging.debug("final config: %s", data)
+        return data
 
     def _er_cb(self, result):
         # Runs in same process as the run method, but not the main thread

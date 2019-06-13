@@ -175,7 +175,7 @@ amount of artifacts to process at any one time.''')
     except windlass.exc.WindlassException:
         logging.error('Exited due to error.')
         sys.exit(1)
-    logging.info('Windlassed: %s', ','.join(ns.products))
+    logging.info('Windlassed: %s', ','.join(g.configs))
 
 
 if __name__ == '__main__':
