@@ -167,6 +167,12 @@ class Artifacts(object):
              workspace=None,
              repopath=None,
              **metadata):
+        """
+        Load artifacts based on data structure provided
+
+        Requires dictionary containing the list of artifact entries
+        to be loaded.
+        """
         artifacts = []
 
         for key, cls in _products_registry.items():
