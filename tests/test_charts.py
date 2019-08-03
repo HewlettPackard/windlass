@@ -51,9 +51,8 @@ class TestCharts(testtools.TestCase):
             },
             working_dir=self.repodir,
             environment=windlass.tools.load_proxy())
-        products = self._yaml_load(
-            open(os.path.join(self.repodir, 'products/test-chart.yml')),
-        )
+        with open(os.path.join(self.repodir, 'products/test-chart.yml')) as f:
+            products = self._yaml_load(f)
         return windlass.charts.Chart(products['charts'][0])
 
     def setUp(self):
@@ -74,15 +73,21 @@ class TestCharts(testtools.TestCase):
 
     def tearDown(self):
         os.chdir(self.saved_cwd)
+        self.client.close()
         super().tearDown()
 
     def test_package_charts(self):
         # Test chart
-        stream = open(os.path.join(self.repodir, 'ubuntu-0.0.1.tgz'), 'rb')
-        tar = tarfile.open(fileobj=stream, mode='r:gz')
-        chart_data = self._yaml_load(tar.extractfile('ubuntu/Chart.yaml'))
+        with open(os.path.join(self.repodir,
+                               'ubuntu-0.0.1.tgz'), 'rb') as stream:
+            with tarfile.open(fileobj=stream, mode='r:gz') as tar:
+                chart_data = self._yaml_load(
+                    tar.extractfile('ubuntu/Chart.yaml')
+                )
+                values_data = self._yaml_load(
+                    tar.extractfile('ubuntu/values.yaml')
+                )
         self.assertEqual(chart_data['version'], '0.0.1')
-        values_data = self._yaml_load(tar.extractfile('ubuntu/values.yaml'))
         self.assertEqual(values_data['image']['repository'], 'ubuntu')
         self.assertEqual(values_data['image'].get('registry', None), None)
         self.assertEqual(values_data['image']['tag'], '16.04')
@@ -91,12 +96,16 @@ class TestCharts(testtools.TestCase):
         data = self.chart.package_chart('0.0.1', '2.1.0', registry='reg')
 
         # Test the output.
-        stream = io.BytesIO(data)
-        tar = tarfile.open(fileobj=stream, mode='r:gz')
-        chart_data = self._yaml_load(tar.extractfile('ubuntu/Chart.yaml'))
-        self.assertEqual(chart_data['version'], '2.1.0')
+        with io.BytesIO(data) as stream:
+            with tarfile.open(fileobj=stream, mode='r:gz') as tar:
+                chart_data = self._yaml_load(
+                    tar.extractfile('ubuntu/Chart.yaml')
+                )
+                values_data = self._yaml_load(
+                    tar.extractfile('ubuntu/values.yaml')
+                )
 
-        values_data = self._yaml_load(tar.extractfile('ubuntu/values.yaml'))
+        self.assertEqual(chart_data['version'], '2.1.0')
         self.assertEqual(values_data['image']['repository'], 'ubuntu')
         self.assertEqual(values_data['image']['registry'], 'reg')
         self.assertEqual(values_data['image']['tag'], '2.1.0')

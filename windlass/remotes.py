@@ -73,26 +73,39 @@ class DockerConnector(object):
 
     @remote_retry()
     def upload(self, local_name, upload_name=None, upload_tag=None):
-        dcli = docker.from_env(version='auto')
-        auth_config = {'username': self.username, 'password': self.password}
-        local_image_name, local_image_tag = local_name.split(':')
-        if upload_name is None:
-            upload_name = local_image_name
-        if upload_tag is None:
-            upload_tag = local_image_tag
-        upload_path = '%s/%s' % (self.registry_list[0], upload_name)
-        upload_url = '%s:%s' % (upload_path, upload_tag)
         try:
-            dcli.api.tag(local_name, upload_path, upload_tag)
+            dcli = docker.from_env(version='auto')
 
-            logging.info('%s: Pushing as %s', local_name, upload_url)
-            output = dcli.images.push(
-                upload_path, upload_tag, auth_config=auth_config, stream=True
-            )
-            windlass.images.check_docker_stream(output)
-            return upload_url
+            if self.username is not None:
+                auth_config = {
+                    'username': self.username,
+                    'password': self.password
+                }
+            else:
+                auth_config = None
+
+            local_image_name, local_image_tag = local_name.split(':')
+            if upload_name is None:
+                upload_name = local_image_name
+            if upload_tag is None:
+                upload_tag = local_image_tag
+            upload_path = '%s/%s' % (self.registry_list[0], upload_name)
+            upload_url = '%s:%s' % (upload_path, upload_tag)
+            try:
+                dcli.api.tag(local_name, upload_path, upload_tag)
+
+                logging.info('%s: Pushing as %s', local_name, upload_url)
+                output = dcli.images.push(
+                    upload_path, upload_tag, auth_config=auth_config,
+                    stream=True
+                )
+                windlass.images.check_docker_stream(output)
+                logging.info('%s: Successfully pushed', local_name)
+                return upload_url
+            finally:
+                dcli.api.remove_image(upload_url)
         finally:
-            dcli.api.remove_image(upload_url)
+            dcli.close()
 
     def download_docker(self, image_name):
         pass

@@ -150,7 +150,8 @@ class Generic(windlass.api.Artifact):
                **kwargs):
 
         local_filename = self.get_filename()
-        data = open(local_filename, 'rb').read()
+        with open(local_filename, 'rb') as fp:
+            data = fp.read()
         if 'remote' in kwargs:
             try:
                 # Ignoring version.
@@ -207,7 +208,8 @@ class Generic(windlass.api.Artifact):
             pass
 
     def export_stream(self, version=None):
-        return open(self.get_filename(), 'rb')
+        with open(self.get_filename(), 'rb') as fp:
+            yield fp
 
     def export(self, export_dir='.', export_name=None, version=None):
         if export_name is None:
