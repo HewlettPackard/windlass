@@ -38,6 +38,7 @@ class DockerImage(fixtures.Fixture):
 
     def _setUp(self):
         self.docker_client = docker.from_env(version='auto')
+        self.addCleanup(self.docker_client.close)
         path = pathlib.Path(__file__).parent.as_posix()
         dockerpath = pathlib.Path(__file__).stem
         self.docker_client.images.build(
@@ -58,14 +59,12 @@ class TestDockerUtils(tests.test_e2e.FakeRegistry):
 
     def cleanUp(self):
         super().cleanUp()
-        client = docker.from_env(
-            version='auto',
-            timeout=180)
-        try:
-            client.api.remove_image(self.random_name)
-        except docker.errors.ImageNotFound:
-            # Image isn't on system so no worries
-            pass
+        with docker.from_env(version='auto', timeout=180) as client:
+            try:
+                client.api.remove_image(self.random_name)
+            except docker.errors.ImageNotFound:
+                # Image isn't on system so no worries
+                pass
 
     def test_failed_image_build(self):
         temp = self.useFixture(
@@ -181,17 +180,18 @@ class TestDockerUtils(tests.test_e2e.FakeRegistry):
             version='auto',
             timeout=180)
 
-        # To capture all output to inspect, must delay removal until
-        # after retrieval of logs otherwise the API can sometimes return
-        # an empty result
-        c = client.containers.create(im)
         try:
+            # To capture all output to inspect, must delay removal until
+            # after retrieval of logs otherwise the API can sometimes return
+            # an empty result
+            c = client.containers.create(im)
             c.start()
             result = c.wait()
             output = c.logs(stdout=True, stderr=True)
         finally:
             c.stop()
             c.remove()
+            client.close()
         # make sure completed successfully
         self.assertEqual(0, result['StatusCode'])
         self.assertEqual('somevalue', output.decode())

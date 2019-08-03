@@ -118,20 +118,15 @@ class Chart(windlass.api.Artifact):
 
         return chart_name
 
-    def package_chart(self, local_version, version=None, **kwargs):
-        '''Package chart
+    def _package_chart(self, tarfile, version=None, **kwargs):
+        '''Internal Helper
 
-        Take the chart file and process it, returning the contents
-        of a chart with, different version, and apply all the values
-        specified in the configuration file.
+        Internal method to make it easier to hanle closing
+        the tarfile passed here automatically on exit.
         '''
-        local_chart_name = self.get_chart_name(local_version)
-
-        tfile = tarfile.open(local_chart_name, 'r:gz')
-
         def get_data(filename):
             membername = os.path.join(self.name, filename)
-            yaml = tfile.extractfile(membername)
+            yaml = tarfile.extractfile(membername)
             return membername, ruamel.yaml.load(
                 yaml, Loader=ruamel.yaml.RoundTripLoader)
 
@@ -170,7 +165,7 @@ class Chart(windlass.api.Artifact):
 
         with tempfile.NamedTemporaryFile() as tmp_file:
             with tarfile.open(tmp_file.name, 'w:gz') as out:
-                for member in tfile.getmembers():
+                for member in tarfile.getmembers():
                     if member.name == chart_file:
                         # Override the size of the file
                         datastr = ruamel.yaml.dump(
@@ -188,10 +183,22 @@ class Chart(windlass.api.Artifact):
                         member.size = len(databytes)
                         out.addfile(member, io.BytesIO(databytes))
                     else:
-                        out.addfile(member, tfile.extractfile(member.name))
+                        out.addfile(member, tarfile.extractfile(member.name))
 
-            fp = open(tmp_file.name, 'rb')
-            return fp.read()
+            with open(tmp_file.name, 'rb') as fp:
+                return fp.read()
+
+    def package_chart(self, local_version, version=None, **kwargs):
+        '''Package chart
+
+        Take the chart file and process it, returning the contents
+        of a chart with, different version, and apply all the values
+        specified in the configuration file.
+        '''
+        local_chart_name = self.get_chart_name(local_version)
+
+        with tarfile.open(local_chart_name, 'r:gz') as tfile:
+            return self._package_chart(tfile, version, **kwargs)
 
     def update_version(self, version):
         """Update the chart version, re-packing if the version changes.
@@ -219,16 +226,21 @@ class Chart(windlass.api.Artifact):
                docker_image_registry=None,
                **kwargs):
         if 'remote' in kwargs:
+            stream = None
             try:
+                stream = self.export_stream()
                 return kwargs['remote'].upload_chart(
                     self.get_chart_name(version or self.version),
-                    self.export_stream(), properties={}
+                    stream, properties={}
                 )
             except windlass.api.NoValidRemoteError:
                 # Fall thru to old upload code.
                 logging.debug(
                     "No charts endpoint configured for %s", kwargs['remote']
                 )
+            finally:
+                if stream:
+                    stream.close()
         # TODO(kerrin) can we reuse the docker_* credentials like this,
         # it works for artifactory, not sure about AWS.
         if not charts_url:
