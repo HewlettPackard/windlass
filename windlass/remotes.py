@@ -18,17 +18,15 @@ import boto3
 import botocore.exceptions
 import collections
 import docker
-import functools
 import logging
 import os
 import requests
-import time
-import traceback
 import urllib.parse
 
 import windlass.api
 import windlass.exc
 import windlass.images
+import windlass.retry
 
 
 # Define an AWSCreds lightweight class, which also includes the region to use
@@ -40,7 +38,7 @@ AWSCreds = collections.namedtuple(
 global_retry_backoff = 5
 
 
-class remote_retry(object):
+class remote_retry(windlass.retry.simple):
     """Retry decorator for AWS operations
 
     Accepts an exceptions list of exception classes to retry on, in addition
@@ -55,33 +53,6 @@ class remote_retry(object):
         self.retry_on = set([windlass.exc.RetryableFailure])
         if retry_on:
             self.retry_on.update(retry_on)
-        self._raised = []
-
-    def __call__(self, func):
-        @functools.wraps(func)
-        def retry_f(*args, **kwargs):
-            for i in range(0, self.max_retries):
-                try:
-                    return func(*args, **kwargs)
-                except Exception as e:
-                    if not any(isinstance(e, r) for r in self.retry_on):
-                        raise
-                    self._raised.append(traceback.format_exc())
-                    logging.info(
-                        '%s: problem occuried retrying, backing '
-                        'off %d seconds' % (
-                            func, self.retry_backoff))
-                    time.sleep(self.retry_backoff)
-
-            logging.error('Attempted %d times with following results:'
-                          % self.max_retries)
-            for no, tb in enumerate(self._raised):
-                logging.error('Attempt %d' % (no + 1))
-                logging.error(tb)
-            raise Exception('%s: Maximum number of retries occurred (%d)' % (
-                func, self.max_retries))
-
-        return retry_f
 
 
 class DockerConnector(object):

@@ -44,35 +44,52 @@ class simple(object):
     Add this decorator to any method that we need to retry.
     """
 
-    def __init__(self, max_retries=3, retry_backoff=5):
+    def __init__(self, max_retries=3, retry_backoff=5, retry_on=None):
         self.max_retries = max_retries
         self.retry_backoff = retry_backoff
+
+        self.retry_on = {
+            urllib3.exceptions.ReadTimeoutError,
+            windlass.exc.RetryableFailure,
+        }
+        if retry_on:
+            self.retry_on.update(retry_on)
 
     def __call__(self, func):
         attempts = []
 
         @functools.wraps(func)
         def retry_f(*args, **kwargs):
-            artifact = args[0]
+            try:
+                name = args[0].name
+            except (AttributeError, IndexError):
+                name = func
+
             for i in range(0, self.max_retries):
                 try:
                     return func(*args, **kwargs)
-                except (urllib3.exceptions.ReadTimeoutError,
-                        windlass.exc.RetryableFailure) as e:
+                except Exception as e:
+                    if not any(isinstance(e, r) for r in self.retry_on):
+                        raise
                     logging.info(
-                        '%s: problem occuried retrying, backing '
+                        '%s: problem occurred retrying, backing '
                         'off %d seconds' % (
-                            artifact.name, self.retry_backoff))
+                            name, self.retry_backoff))
                     attempts.append(ensure_debug_message(e))
                     time.sleep(self.retry_backoff)
+                # failure from nested retry, don't retry again
+                except windlass.exc.FailedRetriesException as e:
+                    # catch and re-raise with name for nested retry
+                    e.args[0] = ('%s: ' + e.args[0]) % name
+                    raise e
             logging.error(
                 '%s: Maximum number of retries occurred (%d), details will be'
                 ' displayed at the end' % (
-                    artifact.name, self.max_retries),
+                    name, self.max_retries),
                 )
             raise windlass.exc.FailedRetriesException(
                 '%s: Maximum number of retries occurred (%d)' % (
-                    artifact.name, self.max_retries),
+                    name, self.max_retries),
                 attempts=attempts)
 
         return retry_f

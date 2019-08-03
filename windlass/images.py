@@ -317,6 +317,7 @@ class Image(windlass.api.Artifact):
                 self.imagename, self.version, version,
             )
 
+        # old approach for remote registries
         if 'remote' in kwargs:
             try:
                 return kwargs['remote'].upload_docker(
@@ -331,13 +332,6 @@ class Image(windlass.api.Artifact):
             raise Exception(
                 'docker_image_registry not set for image upload. '
                 'Unable to publish')
-
-        if docker_user:
-            auth_config = {
-                'username': docker_user,
-                'password': docker_password}
-        else:
-            auth_config = None
 
         # Local image name on the node
         local_fullname = self.url(self.version)
@@ -354,19 +348,16 @@ class Image(windlass.api.Artifact):
 
         # Upload image with this tag
         upload_tag = version or self.version
-        upload_name = '%s/%s' % (
-            docker_image_registry.rstrip('/'), self.imagename)
-        fullname = '%s:%s' % (upload_name, upload_tag)
 
-        try:
-            if docker_image_registry:
-                client.api.tag(local_fullname, upload_name, upload_tag)
-            push_image(upload_name, upload_tag, auth_config=auth_config)
-        finally:
-            if docker_image_registry:
-                client.api.remove_image(fullname)
+        connector = docker_image_registry.get_connector()
+        result = connector.upload(
+            local_name=local_fullname,
+            upload_name=self.imagename,
+            upload_tag=upload_tag,
+        )
 
         logging.info('%s: Successfully pushed', self.name)
+        return result
 
     def export_stream(self, version=None):
         client = docker.from_env(
