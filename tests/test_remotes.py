@@ -218,12 +218,12 @@ class TestECRConnectorUsage(TestECRConnectorBase):
                 image_name
 
             )  # noqa
-            # Ensure three tracebacks are there
-            tbs = 0
+            # Ensure three retries are there
+            retry = 0
             for logrecord in cmlogs.records:
-                if 'Traceback' in logrecord.msg:
-                    tbs += 1
-            self.assertEqual(tbs, 3)
+                if 'problem occurred' in logrecord.msg:
+                    retry += 1
+            self.assertEqual(retry, 3)
             self.assertIn('Maximum number of retries occurred (3)', str(e))
 
 
