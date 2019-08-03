@@ -15,13 +15,13 @@
 # under the License.
 #
 
-import windlass.api
-import windlass.pins
-
 from argparse import ArgumentParser
 import logging
 import os
 import sys
+
+import windlass.api
+import windlass.pins
 
 
 def process(artifact, ns, **kwargs):
@@ -94,7 +94,7 @@ configuration''')
     download_group.add_argument(
         '--download-docker-registry', action='append',
         default=['registry.hub.docker.com'],
-        help='Registry of images.')
+        help='Registries to search for images.')
     download_group.add_argument(
         '--download-charts-url', action='append', default=[],
         help='Helm repositories.')
@@ -167,9 +167,10 @@ amount of artifacts to process at any one time.''')
     try:
         g.run(
             process,
-            ns=ns,
             artifact_name=ns.artifact_name,
             parallel=not ns.no_parallel,
+            # following args are for the process function
+            ns=ns,
             docker_user=docker_user,
             docker_password=docker_password)
     except windlass.exc.WindlassException:
