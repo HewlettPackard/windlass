@@ -14,12 +14,8 @@
 # under the License.
 #
 
-import unittest
-
 import fixtures
 import testtools
-
-from . import base  # noqa: H304
 
 import windlass.registries
 
@@ -57,19 +53,21 @@ class TestDockerRegistry(testtools.TestCase):
 
     reg_url = "registry.hub.docker.com"
 
-    @base.addfixture(fixtures.EnvironmentVariable, 'DOCKER_USER', 'my_user')
-    @base.addfixture(fixtures.EnvironmentVariable, 'DOCKER_PASSWORD',
-                     'my_password')
     def test_credentials_from_env(self):
+        self.useFixture(fixtures.EnvironmentVariable('DOCKER_USER', 'my_user'))
+        self.useFixture(
+            fixtures.EnvironmentVariable('DOCKER_PASSWORD', 'my_password')
+        )
         registry = windlass.registries.DockerRegistry(self.reg_url)
 
         self.assertEqual('my_user', registry.username)
         self.assertEqual('my_password', registry.password)
 
-    @base.addfixture(fixtures.EnvironmentVariable, 'DOCKER_USER', 'my_user')
-    @base.addfixture(fixtures.EnvironmentVariable, 'DOCKER_PASSWORD',
-                     'my_password')
     def test_credentials_ignore_env_when_set(self):
+        self.useFixture(fixtures.EnvironmentVariable('DOCKER_USER', 'my_user'))
+        self.useFixture(
+            fixtures.EnvironmentVariable('DOCKER_PASSWORD', 'my_password')
+        )
         registry = windlass.registries.DockerRegistry(
             self.reg_url,
             "explicit_user",
@@ -80,47 +78,60 @@ class TestDockerRegistry(testtools.TestCase):
         self.assertEqual('explicit_password', registry.password)
 
 
-@unittest.mock.patch('windlass.registries.remotes.ECRConnector')
 class TestEcrRegistry(testtools.TestCase):
 
     reg_url = "000000000000.dkr.ecr.us-west-1.amazonaws.com"
 
-    @base.addfixture(fixtures.EnvironmentVariable, 'AWS_ACCESS_KEY_ID',
-                     'AKIAIOSFODNN7EXAMPLE')
-    @base.addfixture(fixtures.EnvironmentVariable, 'AWS_SECRET_ACCESS_KEY',
-                     'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY')
-    @base.addfixture(fixtures.EnvironmentVariable, 'AWS_DEFAULT_REGION',
-                     'us-west-2')
-    def test_credentials_from_env(self, ecr_connector_mock):
+    def setUp(self):
+        super().setUp()
+
+        self.ecr_connector_mock = self.useFixture(
+            fixtures.MockPatch('windlass.registries.remotes.ECRConnector')
+        ).mock
+
+    def test_credentials_from_env(self):
+        self.useFixture(fixtures.EnvironmentVariable(
+            'AWS_ACCESS_KEY_ID', 'AKIAIOSFODNN7EXAMPLE'))
+        self.useFixture(fixtures.EnvironmentVariable(
+            'AWS_SECRET_ACCESS_KEY', 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+            ))
+        self.useFixture(fixtures.EnvironmentVariable(
+            'AWS_DEFAULT_REGION', 'us-west-2'))
+
         registry = windlass.registries.EcrDockerRegistry(self.reg_url)
 
         self.assertIsNone(registry.username)
         self.assertIsNone(registry.password)
-        call_args = ecr_connector_mock.call_args_list
+        call_args = self.ecr_connector_mock.call_args_list
         # check that ECRConnector class is called with AWSCreds containing
         # the example account key id as the first arg
         self.assertEqual(call_args[0][0][0][0], 'AKIAIOSFODNN7EXAMPLE')
         self.assertEqual(call_args[0][0][0][2], 'us-west-2')
 
-    @base.addfixture(fixtures.EnvironmentVariable, 'AWS_ACCESS_KEY_ID',
-                     'AKIAIOSFODNN7EXAMPLE')
-    @base.addfixture(fixtures.EnvironmentVariable, 'AWS_SECRET_ACCESS_KEY',
-                     'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY')
-    def test_credentials_default_region_from_url(self, ecr_connector_mock):
+    def test_credentials_default_region_from_url(self):
+        self.useFixture(fixtures.EnvironmentVariable(
+            'AWS_ACCESS_KEY_ID', 'AKIAIOSFODNN7EXAMPLE'))
+        self.useFixture(fixtures.EnvironmentVariable(
+            'AWS_SECRET_ACCESS_KEY', 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+            ))
+
         registry = windlass.registries.EcrDockerRegistry(self.reg_url)
 
         self.assertIsNone(registry.username)
         self.assertIsNone(registry.password)
-        call_args = ecr_connector_mock.call_args_list
+        call_args = self.ecr_connector_mock.call_args_list
         # check that ECRConnector class is called with AWSCreds containing
         # the extracted region from the url
         self.assertEqual(call_args[0][0][0][2], 'us-west-1')
 
-    @base.addfixture(fixtures.EnvironmentVariable, 'DOCKER_USER', 'my_user')
-    @base.addfixture(fixtures.EnvironmentVariable, 'DOCKER_PASSWORD',
-                     'my_password')
-    @base.addfixture(fixtures.EnvironmentVariable, 'AWS_SECRET_ACCESS_KEY', '')
-    def test_credentials_fallback_to_docker(self, ecr_connector_mock):
+    def test_credentials_fallback_to_docker(self):
+        self.useFixture(fixtures.EnvironmentVariable(
+            'AWS_SECRET_ACCESS_KEY', ''))
+        self.useFixture(fixtures.EnvironmentVariable(
+            'DOCKER_USER', 'my_user'))
+        self.useFixture(fixtures.EnvironmentVariable(
+            'DOCKER_PASSWORD', 'my_password'))
+
         registry = windlass.registries.EcrDockerRegistry(self.reg_url)
 
         self.assertEqual('my_user', registry.username)
@@ -131,21 +142,23 @@ class TestJfrogRegistry(testtools.TestCase):
 
     reg_url = "example-org.jfrog.io"
 
-    @base.addfixture(fixtures.EnvironmentVariable, 'ARTIFACTORY_USER',
-                     'my_jfrog_user')
-    @base.addfixture(fixtures.EnvironmentVariable, 'ARTIFACTORY_PASSWORD',
-                     'my_jfrog_password')
     def test_credentials_from_env(self):
+        self.useFixture(fixtures.EnvironmentVariable(
+            'ARTIFACTORY_USER', 'my_jfrog_user'))
+        self.useFixture(fixtures.EnvironmentVariable(
+            'ARTIFACTORY_PASSWORD', 'my_jfrog_password'))
+
         registry = windlass.registries.JfrogDockerRegistry(self.reg_url)
 
         self.assertEqual('my_jfrog_user', registry.username)
         self.assertEqual('my_jfrog_password', registry.password)
 
-    @base.addfixture(fixtures.EnvironmentVariable, 'ARTIFACTORY_USER',
-                     'my_jfrog_user')
-    @base.addfixture(fixtures.EnvironmentVariable, 'ARTIFACTORY_PASSWORD',
-                     'my_jfrog_password')
     def test_credentials_ignore_env_when_set(self):
+        self.useFixture(fixtures.EnvironmentVariable(
+            'ARTIFACTORY_USER', 'my_jfrog_user'))
+        self.useFixture(fixtures.EnvironmentVariable(
+            'ARTIFACTORY_PASSWORD', 'my_jfrog_password'))
+
         registry = windlass.registries.JfrogDockerRegistry(
             self.reg_url,
             "explicit_user",
@@ -155,11 +168,12 @@ class TestJfrogRegistry(testtools.TestCase):
         self.assertEqual('explicit_user', registry.username)
         self.assertEqual('explicit_password', registry.password)
 
-    @base.addfixture(fixtures.EnvironmentVariable, 'ARTIFACTORY_USER',
-                     'my_jfrog_user')
-    @base.addfixture(fixtures.EnvironmentVariable, 'ARTIFACTORY_API_KEY',
-                     'my_jfrog_token')
     def test_credentials_from_env_api_key_when_set(self):
+        self.useFixture(fixtures.EnvironmentVariable(
+            'ARTIFACTORY_USER', 'my_jfrog_user'))
+        self.useFixture(fixtures.EnvironmentVariable(
+            'ARTIFACTORY_API_KEY', 'my_jfrog_token'))
+
         registry = windlass.registries.JfrogDockerRegistry(self.reg_url,)
 
         self.assertEqual('my_jfrog_user', registry.username)
