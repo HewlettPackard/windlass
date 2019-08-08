@@ -22,6 +22,8 @@ import sys
 
 import windlass.api
 import windlass.pins
+import windlass.registries
+import windlass.remotes
 
 
 def process(artifact, ns, **kwargs):
@@ -39,12 +41,13 @@ def process(artifact, ns, **kwargs):
 
     if not ns.no_push:
         if not ns.build_only:
-            artifact.upload(
-                version=ns.push_version,
-                docker_image_registry=ns.push_docker_registry,
-                charts_url=ns.push_charts_url,
-                generic_url=ns.push_generic_url,
-                **kwargs)
+            for registry in ns.push_docker_registry:
+                artifact.upload(
+                    version=ns.push_version,
+                    docker_image_registry=registry,
+                    charts_url=ns.push_charts_url,
+                    generic_url=ns.push_generic_url,
+                    **kwargs)
 
 
 def main():
@@ -104,8 +107,8 @@ configuration''')
 
     push_group = parser.add_argument_group('Push options')
     push_group.add_argument('--push-docker-registry', action='append',
-                            default=[],
-                            help='Registry to push images.')
+                            default=['registry.hub.docker.com'],
+                            help='Registries to push images to.')
     push_group.add_argument('--push-charts-url', action='append',
                             default=[],
                             help='Helm repositories.')
@@ -148,6 +151,9 @@ amount of artifacts to process at any one time.''')
     if len(ns.download_generic_url) > 1:
         ns.download_generic_url = ns.download_generic_url[1:]
 
+    if len(ns.push_docker_registry) > 1:
+        ns.push_docker_registry = ns.push_docker_registry[1:]
+
     windlass.api.setupLogging(ns.debug, ns.timestamps)
 
     # We have specified a product integration repository. Load all
@@ -163,6 +169,14 @@ amount of artifacts to process at any one time.''')
 
     docker_user = os.environ.get('DOCKER_USER', None)
     docker_password = os.environ.get('DOCKER_TOKEN', None)
+
+    ns.push_docker_registry = [
+        windlass.registries.from_url(registry, docker_user, docker_password)
+        for registry in ns.push_docker_registry
+    ]
+
+    # for each docker registry, build a config object, can also be
+    # read in from a config file in the future
 
     try:
         g.run(
