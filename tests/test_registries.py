@@ -19,7 +19,7 @@ import unittest
 import fixtures
 import testtools
 
-from . import base
+from . import base  # noqa: H304
 
 import windlass.registries
 
@@ -36,7 +36,9 @@ class TestRegistries(testtools.TestCase):
         registry_url = "example-org.jfrog.io"
         registry = windlass.registries.from_url(registry_url)
 
-        self.assertIsInstance(registry, windlass.registries.JfrogDockerRegistry)
+        self.assertIsInstance(
+            registry, windlass.registries.JfrogDockerRegistry
+        )
 
     def test_from_url_hub(self):
         registry_url = "registry.hub.docker.com"
@@ -61,8 +63,8 @@ class TestDockerRegistry(testtools.TestCase):
     def test_credentials_from_env(self):
         registry = windlass.registries.DockerRegistry(self.reg_url)
 
-        self.assertEquals('my_user', registry.username)
-        self.assertEquals('my_password', registry.password)
+        self.assertEqual('my_user', registry.username)
+        self.assertEqual('my_password', registry.password)
 
     @base.addfixture(fixtures.EnvironmentVariable, 'DOCKER_USER', 'my_user')
     @base.addfixture(fixtures.EnvironmentVariable, 'DOCKER_PASSWORD',
@@ -74,8 +76,8 @@ class TestDockerRegistry(testtools.TestCase):
             "explicit_password",
         )
 
-        self.assertEquals('explicit_user', registry.username)
-        self.assertEquals('explicit_password', registry.password)
+        self.assertEqual('explicit_user', registry.username)
+        self.assertEqual('explicit_password', registry.password)
 
 
 @unittest.mock.patch('windlass.registries.remotes.ECRConnector')
@@ -97,8 +99,8 @@ class TestEcrRegistry(testtools.TestCase):
         call_args = ecr_connector_mock.call_args_list
         # check that ECRConnector class is called with AWSCreds containing
         # the example account key id as the first arg
-        self.assertEquals(call_args[0][0][0][0], 'AKIAIOSFODNN7EXAMPLE')
-        self.assertEquals(call_args[0][0][0][2], 'us-west-2')
+        self.assertEqual(call_args[0][0][0][0], 'AKIAIOSFODNN7EXAMPLE')
+        self.assertEqual(call_args[0][0][0][2], 'us-west-2')
 
     @base.addfixture(fixtures.EnvironmentVariable, 'AWS_ACCESS_KEY_ID',
                      'AKIAIOSFODNN7EXAMPLE')
@@ -112,7 +114,7 @@ class TestEcrRegistry(testtools.TestCase):
         call_args = ecr_connector_mock.call_args_list
         # check that ECRConnector class is called with AWSCreds containing
         # the extracted region from the url
-        self.assertEquals(call_args[0][0][0][2], 'us-west-1')
+        self.assertEqual(call_args[0][0][0][2], 'us-west-1')
 
     @base.addfixture(fixtures.EnvironmentVariable, 'DOCKER_USER', 'my_user')
     @base.addfixture(fixtures.EnvironmentVariable, 'DOCKER_PASSWORD',
@@ -121,8 +123,8 @@ class TestEcrRegistry(testtools.TestCase):
     def test_credentials_fallback_to_docker(self, ecr_connector_mock):
         registry = windlass.registries.EcrDockerRegistry(self.reg_url)
 
-        self.assertEquals('my_user', registry.username)
-        self.assertEquals('my_password', registry.password)
+        self.assertEqual('my_user', registry.username)
+        self.assertEqual('my_password', registry.password)
 
 
 class TestJfrogRegistry(testtools.TestCase):
@@ -136,8 +138,8 @@ class TestJfrogRegistry(testtools.TestCase):
     def test_credentials_from_env(self):
         registry = windlass.registries.JfrogDockerRegistry(self.reg_url)
 
-        self.assertEquals('my_jfrog_user', registry.username)
-        self.assertEquals('my_jfrog_password', registry.password)
+        self.assertEqual('my_jfrog_user', registry.username)
+        self.assertEqual('my_jfrog_password', registry.password)
 
     @base.addfixture(fixtures.EnvironmentVariable, 'ARTIFACTORY_USER',
                      'my_jfrog_user')
@@ -150,8 +152,8 @@ class TestJfrogRegistry(testtools.TestCase):
             "explicit_password",
         )
 
-        self.assertEquals('explicit_user', registry.username)
-        self.assertEquals('explicit_password', registry.password)
+        self.assertEqual('explicit_user', registry.username)
+        self.assertEqual('explicit_password', registry.password)
 
     @base.addfixture(fixtures.EnvironmentVariable, 'ARTIFACTORY_USER',
                      'my_jfrog_user')
@@ -160,6 +162,5 @@ class TestJfrogRegistry(testtools.TestCase):
     def test_credentials_from_env_api_key_when_set(self):
         registry = windlass.registries.JfrogDockerRegistry(self.reg_url,)
 
-        self.assertEquals('my_jfrog_user', registry.username)
-        self.assertEquals('my_jfrog_token', registry.password)
-
+        self.assertEqual('my_jfrog_user', registry.username)
+        self.assertEqual('my_jfrog_token', registry.password)
