@@ -210,7 +210,6 @@ class ImagePins(Pins):
                             windlass.images.Image(dict(
                                 name=image,
                                 version=version)))
-            pin_stream.close()
 
         return pins
 

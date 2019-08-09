@@ -179,19 +179,19 @@ class TestDockerUtils(tests.test_e2e.FakeRegistry):
         client = docker.from_env(
             version='auto',
             timeout=180)
+        self.addCleanup(client.close)
 
+        # To capture all output to inspect, must delay removal until
+        # after retrieval of logs otherwise the API can sometimes return
+        # an empty result
+        c = client.containers.create(im)
         try:
-            # To capture all output to inspect, must delay removal until
-            # after retrieval of logs otherwise the API can sometimes return
-            # an empty result
-            c = client.containers.create(im)
             c.start()
             result = c.wait()
             output = c.logs(stdout=True, stderr=True)
         finally:
             c.stop()
             c.remove()
-            client.close()
         # make sure completed successfully
         self.assertEqual(0, result['StatusCode'])
         self.assertEqual('somevalue', output.decode())
