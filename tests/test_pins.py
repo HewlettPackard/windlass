@@ -67,7 +67,8 @@ class TestPins(testtools.TestCase):
 
         self.assertEqual(updated_files, ['aws/api.yaml'])
 
-        data = self._yaml_load(open(os.path.join(repodir, 'aws/api.yaml')))
+        with open(os.path.join(repodir, 'aws/api.yaml')) as f:
+            data = self._yaml_load(f)
         self.assertEqual(data, {
             'configuration': {'my_app_mac': '0.1',
                               'my_app_win': '0.1',
@@ -206,29 +207,29 @@ pins:
             'region2/example2.yaml',
             'region2/example3.yaml'])
 
-        region1data1 = yaml.safe_load(
-            open(os.path.join(self.repodir, 'region1', 'example1.yaml')))
+        with open(os.path.join(self.repodir, 'region1', 'example1.yaml')) as f:
+            region1data1 = yaml.safe_load(f)
         self.assertEqual(
             region1data1['release']['chart'], 'staging-charts/example1:1.0.0')
-        region1data2 = yaml.safe_load(
-            open(os.path.join(self.repodir, 'region1', 'example2.yaml')))
+        with open(os.path.join(self.repodir, 'region1', 'example2.yaml')) as f:
+            region1data2 = yaml.safe_load(f)
         self.assertEqual(
             region1data2['release']['chart'], 'example2:1.0.0')
-        region1data3 = yaml.safe_load(
-            open(os.path.join(self.repodir, 'region1', 'example3.yaml')))
+        with open(os.path.join(self.repodir, 'region1', 'example3.yaml')) as f:
+            region1data3 = yaml.safe_load(f)
         self.assertEqual(
             region1data3['release']['chart'], 'example3:1.0.0')
 
         # Region2 doesn't know about the helm repository.
-        region2data = yaml.safe_load(
-            open(os.path.join(self.repodir, 'region2', 'example1.yaml')))
-        self.assertEqual(region2data['release']['chart'], 'example1:1.0.0')
-        region2data2 = yaml.safe_load(
-            open(os.path.join(self.repodir, 'region2', 'example2.yaml')))
+        with open(os.path.join(self.repodir, 'region2', 'example1.yaml')) as f:
+            region2data1 = yaml.safe_load(f)
+        self.assertEqual(region2data1['release']['chart'], 'example1:1.0.0')
+        with open(os.path.join(self.repodir, 'region2', 'example2.yaml')) as f:
+            region2data2 = yaml.safe_load(f)
         self.assertEqual(
             region2data2['release']['chart'], 'example2:1.0.0')
-        region2data3 = yaml.safe_load(
-            open(os.path.join(self.repodir, 'region2', 'example3.yaml')))
+        with open(os.path.join(self.repodir, 'region2', 'example3.yaml')) as f:
+            region2data3 = yaml.safe_load(f)
         self.assertEqual(
             region2data3['release']['chart'], 'example3:1.0.0')
 
@@ -244,8 +245,11 @@ pins:
             })
         self.assertEqual(updated_files, ['image_pins/testing1.yaml'])
 
-        data = yaml.safe_load(
-            open(os.path.join(self.repodir, 'image_pins/testing1.yaml')))
+        with open(
+                os.path.join(self.repodir, 'image_pins', 'testing1.yaml')
+        ) as f:
+            data = yaml.safe_load(f)
+
         self.assertEqual(
             data['images']['some/image'],
             {'version': '1.0.0', 'zing-metadata': {'item': 'value'}})

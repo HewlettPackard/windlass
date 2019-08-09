@@ -79,11 +79,13 @@ class Pins(object):
             fnlist = [i for i in windlass.tools.all_blob_names(repodir.tree)]
             for pin_files_glob in pin_files_globs:
                 for blob_name in fnmatch.filter(fnlist, pin_files_glob):
-                    yield (repodir.tree / blob_name).data_stream
+                    with (repodir.tree / blob_name).data_stream as stream:
+                        yield stream
         else:
             for pin_files_glob in pin_files_globs:
                 for pin_file in glob.glob(pin_files_glob):
-                    yield open(pin_file)
+                    with open(pin_file) as fp:
+                        yield fp
 
     def iter_artifacts(self, artifacts, artifacttype=None):
         ignore = self.config.get('ignore', [])
@@ -135,8 +137,10 @@ class ImagePins(Pins):
 
         preamble = ''
         try:
-            data = ruamel.yaml.load(
-                open(full_pin_file), Loader=ruamel.yaml.RoundTripLoader)
+            with open(full_pin_file) as fpf:
+                data = ruamel.yaml.load(
+                    fpf, Loader=ruamel.yaml.RoundTripLoader
+                )
         except FileNotFoundError:
             basedir = os.path.dirname(full_pin_file)
             os.makedirs(basedir, exist_ok=True)
@@ -148,7 +152,8 @@ class ImagePins(Pins):
             # write out the contents that are their already, and
             # treat this as a empty data.
             if data is None:
-                preamble = open(full_pin_file).read()
+                with open(full_pin_file) as fpf:
+                    preamble = fpf.read()
                 data = {}
 
         pins = data.get(self.key, {})
@@ -230,8 +235,10 @@ class LandscapePins(Pins):
 
             preamble = ''
             try:
-                data = ruamel.yaml.load(
-                    open(full_pin_file), Loader=ruamel.yaml.RoundTripLoader)
+                with open(full_pin_file) as f:
+                    data = ruamel.yaml.load(
+                        f, Loader=ruamel.yaml.RoundTripLoader
+                    )
             except FileNotFoundError:
                 basedir = os.path.dirname(full_pin_file)
                 os.makedirs(basedir, exist_ok=True)
@@ -243,7 +250,8 @@ class LandscapePins(Pins):
                 # write out the contents that are their already, and
                 # treat this as a empty data.
                 if data is None:
-                    preamble = open(full_pin_file).read()
+                    with open(full_pin_file) as f:
+                        preamble = f.read()
                     data = {}
 
             # chartname may contain the name of the helm repository to find
@@ -330,8 +338,10 @@ class GenericPins(Pins):
 
         preamble = ''
         try:
-            data = ruamel.yaml.load(
-                open(full_pin_file), Loader=ruamel.yaml.RoundTripLoader)
+            with open(full_pin_file) as fpf:
+                data = ruamel.yaml.load(
+                    fpf, Loader=ruamel.yaml.RoundTripLoader
+                )
         except FileNotFoundError:
             basedir = os.path.dirname(full_pin_file)
             os.makedirs(basedir, exist_ok=True)
@@ -343,7 +353,8 @@ class GenericPins(Pins):
             # write out the contents that are their already, and
             # treat this as a empty data.
             if data is None:
-                preamble = open(full_pin_file).read()
+                with open(full_pin_file) as fpf:
+                    preamble = fpf.read()
                 data = {}
 
         pins = data.get(self.key, {})
@@ -400,6 +411,7 @@ class GenericPins(Pins):
                             actual_filename=filename,
                         )
                     )
+            pin_stream.close()
         return pins
 
 
@@ -434,10 +446,10 @@ class OverrideYamlConfiguration(object):
 
             preamble = ''
             try:
-                data = ruamel.yaml.load(
-                    open(full_conf_file),
-                    Loader=ruamel.yaml.RoundTripLoader
-                )
+                with open(full_conf_file) as fp:
+                    data = ruamel.yaml.load(
+                        fp, Loader=ruamel.yaml.RoundTripLoader
+                    )
             except FileNotFoundError:
                 basedir = os.path.dirname(full_conf_file)
                 os.makedirs(basedir, exist_ok=True)
@@ -449,7 +461,8 @@ class OverrideYamlConfiguration(object):
                 # write out the contents that are their already, and
                 # treat this as a empty data.
                 if data is None:
-                    preamble = open(full_conf_file).read()
+                    with open(full_conf_file) as fp:
+                        preamble = fp.read()
                     data = {}
 
             updatedfile = False
@@ -568,8 +581,11 @@ def read_configuration(repodir=None):
             if not os.path.exists(configuration):
                 return {}
         stream = open(configuration)
-    configuration_data = ruamel.yaml.load(
-        stream, Loader=ruamel.yaml.RoundTripLoader)
+    try:
+        configuration_data = ruamel.yaml.load(
+            stream, Loader=ruamel.yaml.RoundTripLoader)
+    finally:
+        stream.close()
 
     return configuration_data
 

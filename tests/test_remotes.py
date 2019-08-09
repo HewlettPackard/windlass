@@ -46,6 +46,7 @@ class TestECRConnectorBase(testtools.TestCase):
         )
         self.stubber = botocore.stub.Stubber(self.ecr_client)
         self.stubber.activate()
+        self.addCleanup(self.stubber.deactivate)
 
         auth_resp = {'authorizationData': [{
             'proxyEndpoint': 'https://%s.dkr.ecr.%s.amazonaws.com' % (

@@ -63,16 +63,23 @@ def check_docker_stream(stream):
 
 
 def push_image(imagename, push_tag='latest', auth_config=None):
+    output = None
     client = docker.from_env(
         version='auto',
         timeout=180)
-    name = multiprocessing.current_process().name
-    logging.info('%s: Pushing as %s:%s', name, imagename, push_tag)
+    try:
+        name = multiprocessing.current_process().name
+        logging.info('%s: Pushing as %s:%s', name, imagename, push_tag)
 
-    output = client.images.push(
-        imagename, push_tag, auth_config=auth_config,
-        stream=True)
-    check_docker_stream(output)
+        output = client.images.push(
+            imagename, push_tag, auth_config=auth_config,
+            stream=True)
+        check_docker_stream(output)
+    finally:
+        if output:
+            output.close()
+        client.close()
+
     return True
 
 
@@ -91,47 +98,51 @@ def build_verbosly(name, path, nocache=False, dockerfile=None,
                    pull=True):
     client = docker.from_env(
         version='auto',
-        timeout=180)
-    bargs = windlass.tools.load_proxy()
-    for envvar in os.environ:
-        if envvar.startswith(BUILDARG_PREFIX):
-            bargs[envvar[len(BUILDARG_PREFIX):]] = os.environ[envvar]
-    logging.info("Building %s from path %s", name, path)
-    stream = client.api.build(path=path,
-                              tag=name,
-                              nocache=nocache,
-                              buildargs=bargs,
-                              dockerfile=dockerfile,
-                              pull=pull)
-    errors = []
-    output = []
-    for line in stream:
-        data = yaml.load(line.decode(), Loader=yaml.SafeLoader)
-        if 'stream' in data:
-            for out in data['stream'].split('\n\r'):
-                logging.debug('%s: %s', name, out.strip())
-                # capture detailed output in case of error
-                output.append(out.strip())
-        elif 'error' in data:
-            errors.append(data['error'])
-    if errors:
-        logging.error(
-            'Failed to build %s. Error details will be shown at the end.',
-            name)
-        debug_data = {'buildargs.%s' % k: v for k, v in bargs.items()}
-        debug_data['dockerfile'] = dockerfile
-        debug_data['tag'] = name
-        debug_data['path'] = path
-        debug_data['nocache'] = str(nocache)
-        debug_data['pull'] = str(pull)
-        raise windlass.exc.WindlassBuildException(
-            "Failed to build {}".format(name),
-            out=output,
-            errors=errors,
-            artifact_name=name,
-            debug_data=debug_data)
-    logging.info("Successfully built %s from path %s", name, path)
-    return client.images.get(name)
+        timeout=180
+    )
+    try:
+        bargs = windlass.tools.load_proxy()
+        for envvar in os.environ:
+            if envvar.startswith(BUILDARG_PREFIX):
+                bargs[envvar[len(BUILDARG_PREFIX):]] = os.environ[envvar]
+        logging.info("Building %s from path %s", name, path)
+        stream = client.api.build(path=path,
+                                  tag=name,
+                                  nocache=nocache,
+                                  buildargs=bargs,
+                                  dockerfile=dockerfile,
+                                  pull=pull)
+        errors = []
+        output = []
+        for line in stream:
+            data = yaml.load(line.decode(), Loader=yaml.SafeLoader)
+            if 'stream' in data:
+                for out in data['stream'].split('\n\r'):
+                    logging.debug('%s: %s', name, out.strip())
+                    # capture detailed output in case of error
+                    output.append(out.strip())
+            elif 'error' in data:
+                errors.append(data['error'])
+        if errors:
+            logging.error(
+                'Failed to build %s. Error details will be shown at the end.',
+                name)
+            debug_data = {'buildargs.%s' % k: v for k, v in bargs.items()}
+            debug_data['dockerfile'] = dockerfile
+            debug_data['tag'] = name
+            debug_data['path'] = path
+            debug_data['nocache'] = str(nocache)
+            debug_data['pull'] = str(pull)
+            raise windlass.exc.WindlassBuildException(
+                "Failed to build {}".format(name),
+                out=output,
+                errors=errors,
+                artifact_name=name,
+                debug_data=debug_data)
+        logging.info("Successfully built %s from path %s", name, path)
+        return client.images.get(name)
+    finally:
+        client.close()
 
 
 def build_image_from_local_repo(repopath, imagepath, name, tags=[],
@@ -189,15 +200,19 @@ class Image(windlass.api.Artifact):
         """
         client = docker.from_env(
             version='auto',
-            timeout=180)
-        logging.info("%s: Pulling image from %s", imagename, remoteimage)
+            timeout=180
+        )
+        try:
+            logging.info("%s: Pulling image from %s", imagename, remoteimage)
 
-        output = client.api.pull(remoteimage, stream=True)
-        check_docker_stream(output)
-        client.api.tag(remoteimage, imagename, tag)
+            output = client.api.pull(remoteimage, stream=True)
+            check_docker_stream(output)
+            client.api.tag(remoteimage, imagename, tag)
 
-        image = client.images.get('%s:%s' % (imagename, tag))
-        return image
+            image = client.images.get('%s:%s' % (imagename, tag))
+            return image
+        finally:
+            client.close()
 
     def url(self, version=None, docker_image_registry=None, **kwargs):
         if version is None:
@@ -241,6 +256,8 @@ class Image(windlass.api.Artifact):
         except docker.errors.ImageNotFound:
             # Image isn't on system so no worries
             pass
+        finally:
+            client.close()
 
     @windlass.api.fall_back('docker_image_registry')
     def delete(self, version=None, docker_image_registry=None, **kwargs):
@@ -248,7 +265,10 @@ class Image(windlass.api.Artifact):
 
         if docker_image_registry:
             self._delete_image(
-                '%s/%s:%s' % (docker_image_registry, self.imagename, tag))
+                '%s/%s:%s' % (
+                    str(docker_image_registry), self.imagename, tag
+                )
+            )
         self._delete_image('%s:%s' % (self.imagename, tag))
 
     @windlass.retry.simple()
@@ -257,30 +277,35 @@ class Image(windlass.api.Artifact):
         client = docker.from_env(
             version='auto',
             timeout=180)
-        if version is None and self.version is None:
-            raise Exception('Must specify version of image to download.')
+        try:
+            if version is None and self.version is None:
+                raise Exception('Must specify version of image to download.')
 
-        if docker_image_registry is None:
-            raise Exception(
-                'docker_image_registry not set for image download. '
-                'Where should we download from?')
+            if docker_image_registry is None:
+                raise Exception(
+                    'docker_image_registry not set for image download. '
+                    'Where should we download from?')
 
-        tag = version or self.version
+            tag = version or self.version
 
-        logging.info('Pinning image: %s to pin: %s' % (self.imagename, tag))
-        remoteimage = '%s/%s:%s' % (docker_image_registry, self.imagename, tag)
+            logging.info('Pinning image: %s to pin: %s', self.imagename, tag)
+            remoteimage = '%s/%s:%s' % (
+                docker_image_registry, self.imagename, tag
+            )
 
-        # Pull the remoteimage down and tag it with the name of artifact
-        # and the requested version
-        self.pull_image(remoteimage, self.imagename, tag)
+            # Pull the remoteimage down and tag it with the name of artifact
+            # and the requested version
+            self.pull_image(remoteimage, self.imagename, tag)
 
-        if tag != self.version:
-            # Tag the image with the version but without the repository
-            client.api.tag(remoteimage, self.imagename, self.version)
+            if tag != self.version:
+                # Tag the image with the version but without the repository
+                client.api.tag(remoteimage, self.imagename, self.version)
 
-        # Apply devtag to this image also. Note that not all artifacts
-        # support a devtag
-        client.api.tag(remoteimage, self.imagename, self.devtag)
+            # Apply devtag to this image also. Note that not all artifacts
+            # support a devtag
+            client.api.tag(remoteimage, self.imagename, self.devtag)
+        finally:
+            client.close()
 
     def update_version(self, version):
         """Tag the image with a new version tag and update internal version.
@@ -290,25 +315,25 @@ class Image(windlass.api.Artifact):
         client = docker.from_env(
             version='auto',
             timeout=180)
-        if version == self.version:
-            logging.debug(
-                "update_version(image): No version change (%s)", version
+        try:
+            if version == self.version:
+                logging.debug(
+                    "update_version(image): No version change (%s)", version
+                )
+                return
+            client.api.tag(
+                '%s:%s' % (self.imagename, self.version),
+                self.imagename, tag=version,
             )
-            return
-        client.api.tag(
-            '%s:%s' % (self.imagename, self.version),
-            self.imagename, tag=version,
-        )
-        return self.set_version(version)
+            return self.set_version(version)
+        finally:
+            client.close()
 
     @windlass.retry.simple()
     @windlass.api.fall_back('docker_image_registry', first_only=True)
     def upload(self, version=None, docker_image_registry=None,
                docker_user=None, docker_password=None,
                **kwargs):
-        client = docker.from_env(
-            version='auto',
-            timeout=180)
         # Start to phase out passing of version to upload.
         if version != self.version:
             logging.debug(
@@ -337,6 +362,7 @@ class Image(windlass.api.Artifact):
         local_fullname = self.url(self.version)
 
         # raises exception if imagename is missing
+        client = docker.from_env(version='auto', timeout=180)
         try:
             client.images.get(local_fullname)
         except docker.errors.ImageNotFound as e:
@@ -345,6 +371,8 @@ class Image(windlass.api.Artifact):
                 artifact_name=self.name,
                 errors=[str(e)]
             )
+        finally:
+            client.close()
 
         # Upload image with this tag
         upload_tag = version or self.version
@@ -359,48 +387,66 @@ class Image(windlass.api.Artifact):
         return result
 
     def export_stream(self, version=None):
-        client = docker.from_env(
-            version='auto',
-            timeout=180)
         img_name = self.imagename + ':' + self.version
-        img = client.images.get(img_name)
-        return img.save()
+
+        client = docker.from_env(version='auto', timeout=180)
+        try:
+            img = client.images.get(img_name)
+            return img.save()
+        finally:
+            client.close()
 
     def export(self, export_dir='.', export_name=None, version=None):
         client = docker.from_env(
             version='auto',
             timeout=180)
-        img_name = self.imagename + ':' + self.version
-        img = client.images.get(img_name)
-        if export_name is None:
-            ver = version or img.short_id[7:]
-            export_name = "%s-%s.tar" % (self.name, ver)
-        export_path = os.path.join(export_dir, export_name)
-        logging.debug("Exporting image %s to %s", img_name, export_path)
+        try:
+            img_name = self.imagename + ':' + self.version
+            img = client.images.get(img_name)
 
-        os.makedirs(os.path.dirname(export_path), exist_ok=True)
-        with open(export_path, 'wb') as f:
-            for chunk in self.export_stream():
-                f.write(chunk)
-        return export_path
+            if export_name is None:
+                ver = version or img.short_id[7:]
+                export_name = "%s-%s.tar" % (self.name, ver)
+            export_path = os.path.join(export_dir, export_name)
+            logging.debug("Exporting image %s to %s", img_name, export_path)
+
+            os.makedirs(os.path.dirname(export_path), exist_ok=True)
+            with open(export_path, 'wb') as f:
+                stream = self.export_stream()
+                try:
+                    for chunk in stream:
+                        f.write(chunk)
+                finally:
+                    stream.close()
+
+            return export_path
+
+        finally:
+            client.close()
 
     def export_signable(self, export_dir='.', export_name=None, version=None):
         """Write the image ID (sha256 hash) to the export file"""
         client = docker.from_env(
             version='auto',
             timeout=180)
-        img_name = self.imagename + ':' + self.version
-        img = client.images.get(img_name)
+        try:
+            img_name = self.imagename + ':' + self.version
+            img = client.images.get(img_name)
 
-        if export_name is None:
-            # img.short_id starts 'sha256:...' - strip the prefix.
-            ver = version or img.short_id[7:]
-            export_name = "%s-%s.id" % (self.imagename, ver)
-        export_path = os.path.join(export_dir, export_name)
-        logging.debug("Exporting image ID for %s to %s", img_name, export_path)
+            if export_name is None:
+                # img.short_id starts 'sha256:...' - strip the prefix.
+                ver = version or img.short_id[7:]
+                export_name = "%s-%s.id" % (self.imagename, ver)
+            export_path = os.path.join(export_dir, export_name)
+            logging.debug(
+                "Exporting image ID for %s to %s", img_name, export_path
+            )
 
-        os.makedirs(os.path.dirname(export_path), exist_ok=True)
-        with open(export_path, 'w') as f:
-            f.write(img.id)
+            os.makedirs(os.path.dirname(export_path), exist_ok=True)
+            with open(export_path, 'w') as f:
+                f.write(img.id)
 
-        return export_path
+            return export_path
+
+        finally:
+            client.close()

@@ -56,6 +56,7 @@ class FakeRegistry(testtools.TestCase):
 
         self.registry.kill()
         self.registry.remove()
+        self.client.close()
 
 
 class FakeWindlassObject(testtools.TestCase):
@@ -189,12 +190,14 @@ class Test_E2E_FakeRepo(FakeRegistry):
                         '%s image missing branch tag' % imagename)
         self.expectThat(tags, Contains('ref_' + self.commitid),
                         '%s image missing commit tag')
-        self.expectThat(self.client.containers.run(image,
-                                                   remove=True).decode(),
-                        Equals(open('tests/fakerepo/%scontext/image_content.'
-                                    'txt' % imagename).read()),
-                        '%s image build is not valid')
-
+        with open(
+                'tests/fakerepo/%scontext/image_content.txt' % imagename
+        ) as f:
+            self.expectThat(
+                self.client.containers.run(image, remove=True).decode(),
+                Equals(f.read()),
+                '%s image build is not valid',
+            )
         response = get(
             'http://127.0.0.1:%d/v2/fakerepo%s/tags/list' % (
                 self.registry_port, imagename))

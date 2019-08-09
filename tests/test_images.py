@@ -30,7 +30,10 @@ class TestImageAPI(testtools.TestCase):
         super().setUp()
 
         client = docker.from_env(version='auto')
-        client.images.pull('alpine:3.5')
+        try:
+            client.images.pull('alpine:3.5')
+        finally:
+            client.close()
 
     def test_missing_artifact(self):
         im = windlass.images.Image(dict(
@@ -59,12 +62,16 @@ class TestImageAPI(testtools.TestCase):
             ))
 
         with tempfile.NamedTemporaryFile() as tmpfile:
-            for chunk in im.export_stream():
-                tmpfile.write(chunk)
+            stream = im.export_stream()
+            try:
+                for chunk in stream:
+                    tmpfile.write(chunk)
+            finally:
+                stream.close()
             tmpfile.flush()
 
             # tmpfile is a container image
-            tf = tarfile.open(tmpfile.name, 'r')
-            members = [m.name for m in tf.getmembers()]
+            with tarfile.open(tmpfile.name, 'r') as tf:
+                members = [m.name for m in tf.getmembers()]
             self.assertThat(
                 members, testtools.matchers.Contains('manifest.json'))
