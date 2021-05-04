@@ -24,7 +24,7 @@ gitpython==2.1.11
     # via -r requirements.in
 idna==2.8
     # via requests
-jinja2==2.10.1
+jinja2==2.11.3
     # via -r requirements.in
 jmespath==0.9.4
     # via
