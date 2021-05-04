@@ -14,6 +14,8 @@
 # under the License.
 #
 
+ARG HELM_VERSION=v3.5.4
+
 FROM alpine:3.9.3 as base
 
 RUN set -e \
@@ -35,11 +37,12 @@ RUN set -e \
 
 ENV GIT_SSL_NO_VERIFY=
 
+ARG HELM_VERSION
 RUN set -e \
     && apk add --update --no-cache \
         curl \
-    && curl -fSsLO https://storage.googleapis.com/kubernetes-helm/helm-v2.2.0-linux-amd64.tar.gz \
-    && tar xf helm-v2.2.0-linux-amd64.tar.gz linux-amd64/helm -C /usr/local/bin --strip-components 1 \
+    && curl -fSsLO https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz \
+    && tar xf helm-${HELM_VERSION}-linux-amd64.tar.gz linux-amd64/helm -C /usr/local/bin --strip-components 1 \
     ;
 
 ADD . /tmp/package
@@ -52,10 +55,6 @@ FROM base
 
 ENV PYTHONPATH=/usr/local/lib/python3.6/site-packages
 COPY --from=build /usr/local /usr/local
-
-RUN set -e \
-    && helm init -c \
-    ;
 
 VOLUME /var/run/docker.sock
 
