@@ -21,3 +21,4 @@ pyyaml
 ruamel.yaml
 prettytable # needed for pindiff
 Jinja2
+packaging # needed for newer python
