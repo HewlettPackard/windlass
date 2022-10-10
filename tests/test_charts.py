@@ -23,6 +23,7 @@ import yaml
 
 import docker
 import git
+import requests
 import testtools
 
 import windlass.charts
@@ -122,8 +123,8 @@ class TestCharts(testtools.TestCase):
             username=None, password=None
         )
 
-        with self.assertRaisesRegex(Exception,
-                                    'Invalid URL.*No schema supplied.'):
+        with self.assertRaisesRegex(requests.exceptions.MissingSchema,
+                                    'Invalid URL.*No scheme supplied. .*'):
             self.chart.upload(
                 charts_url='bogus', docker_image_registry='', remote=remote
             )

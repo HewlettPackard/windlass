@@ -16,7 +16,7 @@
 
 ARG HELM_VERSION=v3.5.4
 
-FROM alpine:3.9.3 as base
+FROM alpine:3.16.2 as base
 
 RUN set -e \
     && apk add --update --no-cache \
@@ -24,6 +24,8 @@ RUN set -e \
         docker \
         git \
         python3 \
+        py3-pip \
+        py3-setuptools \
     ;
 
 FROM base as build
@@ -48,12 +50,15 @@ RUN set -e \
 ADD . /tmp/package
 
 RUN set -e \
-    && pip3 install --prefix /usr/local --no-cache-dir /tmp/package \
+    && python3 -m pip install --upgrade setuptools \
+    && python3 -m pip install --prefix /usr/local --no-cache-dir /tmp/package \
     ;
 
 FROM base
 
-ENV PYTHONPATH=/usr/local/lib/python3.6/site-packages
+# Recent git will complain if running as a different user to the owner of the repo
+RUN git config --global --add safe.directory '*'
+ENV PYTHONPATH=/usr/local/lib/python3.10/site-packages
 COPY --from=build /usr/local /usr/local
 
 VOLUME /var/run/docker.sock

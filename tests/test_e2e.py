@@ -142,7 +142,7 @@ class Test_E2E_FakeRepo(FakeRegistry):
             'zing/windlass:latest',
             ('--debug --push-docker-registry 127.0.0.1:%d '
              '%s/products/test.yml') % (
-                self.registry_port + 1, self.repodir
+                1000, self.repodir
                 ),
             volumes={'/var/run/docker.sock': {'bind': '/var/run/docker.sock'},
                      self.repodir: {'bind': self.repodir}},
@@ -182,7 +182,7 @@ class Test_E2E_FakeRepo(FakeRegistry):
             self.fail("Image %s exists. It shouldn't" % fullimagename)
 
         # docker 3.0.1 changed api for pull method
-        image = self.client.images.pull(fullimagename)[0]
+        image = self.client.images.pull(fullimagename)
         _, tags = zip(*(t.split('/')[-1].split(':') for t in image.tags))
         self.expectThat(tags, Contains('latest'),
                         '%s image missing latest tag' % imagename)
