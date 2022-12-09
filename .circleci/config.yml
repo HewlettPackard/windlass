@@ -83,7 +83,9 @@ jobs:
           command: |
             docker create \
                 -e DOCKER_HOST \
+                -e DOCKER_MACHINE_NAME \
                 -e NO_PROXY \
+                -v /var/run/docker.sock \
                 -v /src \
                 -w /src \
                 --name windlass \
@@ -125,9 +127,11 @@ jobs:
             BUILD_TAG="${CIRCLE_TAG:-${BUILD_VERSION:-${CIRCLE_BRANCH}}}"
             docker create \
                 -e DOCKER_HOST \
+                -e DOCKER_MACHINE_NAME \
                 -e NO_PROXY \
                 -e DOCKER_USER=${QUAY_USER} \
                 -e DOCKER_TOKEN=${QUAY_TOKEN} \
+                -v /var/run/docker.sock \
                 -v /src \
                 -w /src \
                 --name windlass \
