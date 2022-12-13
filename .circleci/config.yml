@@ -82,10 +82,10 @@ jobs:
           name: Build self using built image
           command: |
             docker create \
-                -e DOCKER_CERT_PATH \
                 -e DOCKER_HOST \
-                -e DOCKER_TLS_VERIFY \
+                -e DOCKER_MACHINE_NAME \
                 -e NO_PROXY \
+                -v /var/run/docker.sock \
                 -v /src \
                 -w /src \
                 --name windlass \
@@ -95,7 +95,6 @@ jobs:
 
             # specifying the workspace directory doesn't work
             docker cp . windlass:/src
-            docker cp ${DOCKER_CERT_PATH} windlass:${DOCKER_CERT_PATH}
 
             docker start -a windlass
       - persist_to_workspace:
@@ -127,12 +126,12 @@ jobs:
             CIRCLE_TAG="${CIRCLE_TAG/v/}"
             BUILD_TAG="${CIRCLE_TAG:-${BUILD_VERSION:-${CIRCLE_BRANCH}}}"
             docker create \
-                -e DOCKER_CERT_PATH \
                 -e DOCKER_HOST \
-                -e DOCKER_TLS_VERIFY \
+                -e DOCKER_MACHINE_NAME \
                 -e NO_PROXY \
                 -e DOCKER_USER=${QUAY_USER} \
                 -e DOCKER_TOKEN=${QUAY_TOKEN} \
+                -v /var/run/docker.sock \
                 -v /src \
                 -w /src \
                 --name windlass \
@@ -144,7 +143,6 @@ jobs:
 
             # specifying the workspace directory doesn't work
             docker cp . windlass:/src
-            docker cp ${DOCKER_CERT_PATH} windlass:${DOCKER_CERT_PATH}
 
             docker start -a windlass
 
